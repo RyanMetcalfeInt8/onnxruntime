@@ -270,6 +270,53 @@ uint32_t OVInferRequest::GetNumInputs() {
   return static_cast<uint32_t>(ovInfReq.get_compiled_model().inputs().size());
 }
 
+void OVInferRequest::RewindKVCache(size_t index)
+{
+  if (device == "NPU") {
+    std::cout << "RewindKVCache on NPU: Trimming cached input_ids / position_ids to length "
+        << index << std::endl;
+    if (cached_input_ids.size() > index) {
+      cached_input_ids.resize(index);
+    }
+
+    if (cached_position_ids.size() > index) {
+      cached_position_ids.resize(index);
+    }
+  }
+  else {
+    std::cout << "OVInferRequest::RewindKVCache: Trimming internal states to length = "
+        << index << std::endl;
+    if (index == 0) {
+      //in this case, since we're trimming *all* of the KVCache, just reset the state.
+      ovInfReq.reset_state();
+    } else {
+      // retrieve kvcache states, and trim...
+      // Most of this code was grabbed from here:
+      // https://github.com/openvinotoolkit/openvino.genai/blob/releases/2025/1/src/cpp/src/utils.cpp#L329
+      auto states = ovInfReq.query_state();
+      for (auto& state : states) {
+        ov::Tensor old_tensor = state.get_state();
+        // [BATCH_SIZE, num_kv_heads, seq_len, head_size]
+        auto shape = old_tensor.get_shape();
+
+        if (shape[2] > index) {
+          shape[2] = index;
+
+          ov::Coordinate new_shape_begin{0, 0, 0, 0};
+          ov::Coordinate new_shape_end{shape};
+
+          auto trimmed_tensor = ov::Tensor(old_tensor, new_shape_begin, new_shape_end);
+
+          ov::Tensor new_tensor(old_tensor.get_element_type(), shape);
+          trimmed_tensor.copy_to(new_tensor);
+
+          state.set_state(new_tensor);
+        }
+      }
+    }
+  }
+}
+
 void OVInferRequest::StartAsync() {
   try {
     // Since we can't seem to set at ORT GenAI layer right now, we just set it here

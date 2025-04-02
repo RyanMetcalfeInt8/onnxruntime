@@ -42,6 +42,8 @@ class BasicBackend : public IBackend {
     return exe_network_.Get();
   }
 
+  void RewindKVCache(size_t index) override;
+
  private:
   void PopulateCompiledDirectory(std::string, std::string&, std::string&, bool&);
   bool ValidateSubgraph(std::map<std::string, std::shared_ptr<ov::Node>>& const_outputs_map);

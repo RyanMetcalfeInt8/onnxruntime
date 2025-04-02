@@ -59,6 +59,8 @@ OpenVINOExecutionProvider::OpenVINOExecutionProvider(const ProviderInfo& info, s
       ep_ctx_handle_{session_context_.openvino_sdk_version, *GetLogger()} {
   InitProviderOrtApi();
 
+  std::cout << "OpenVINOExecutionProvider created: " << this << std::endl;
+
   // to check if target device is available
   // using OVCore capability GetAvailableDevices to fetch list of devices plugged in
   if (info.cache_dir.empty()) {
@@ -254,6 +256,7 @@ std::vector<AllocatorPtr> OpenVINOExecutionProvider::CreatePreferredAllocators()
 
 common::Status OpenVINOExecutionProvider::SetEpDynamicOptions(gsl::span<const char* const> keys,
                                                               gsl::span<const char* const> values) {
+  std::cout << "OpenVINOExecutionProvider::SetEpDynamicOptions" << std::endl;
   std::string workload_type = "";
   // Ensure the number of keys and values match
   if (keys.size() != values.size()) {
@@ -280,7 +283,27 @@ common::Status OpenVINOExecutionProvider::SetEpDynamicOptions(gsl::span<const ch
           ov_compiled_model.set_property(ov::workload_type(workload_type));
         }
       }
-    } else {
+    } else if (key == "kvcache_rewind") {
+      // convert kvcache_rewind value to int64_t
+      int64_t index;
+      try {
+        index = std::stoll(value);
+      } catch (const std::exception& e) {
+        LOGS_DEFAULT(WARNING) << "Could not convert kvcache_rewind value string to index. Exception: " + std::string(e.what());
+        return Status::OK();
+      }
+
+      // Trigger KVCache rewind for backed
+      for (auto& backend : backend_managers_) {
+        if (index >= 0) {
+          backend.RewindKVCache(static_cast<size_t>(index));
+        }
+        else {
+          LOGS_DEFAULT(WARNING) << "kvcache_rewind index is < 0: " << index;
+        }
+      }
+    }
+    else {
       // Handle unknown options
       LOGS_DEFAULT(WARNING) << "Unknown key/value pair - ignoring " << key << "/" << value;
     }

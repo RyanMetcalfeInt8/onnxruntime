@@ -124,6 +124,7 @@ class OVInferRequest {
   void Infer();
   void WaitRequest();
   void QueryStatus();
+  void RewindKVCache(size_t index);
   explicit OVInferRequest(ov::InferRequest obj, std::string d) : ovInfReq(std::move(obj)), device(d) {}
   OVInferRequest() : ovInfReq(ov::InferRequest()), device("NONE") {}
   ov::InferRequest& GetNewObj() {
