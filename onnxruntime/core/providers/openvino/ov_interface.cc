@@ -110,6 +110,14 @@ OVExeNetwork OVCore::CompileModel(std::shared_ptr<OVNetwork>& ie_cnn_network,
         std::cout << "kv_desc.min_response_len = " << kv_desc.min_response_len << std::endl;
 
         update_npu_config(config, ie_cnn_network, kv_pos, kv_desc);
+
+        //"++NPUW_LLM_PREFILL_CONFIG" : {"NPUW_DEVICES" : "NPU,CPU", "NPUW_SUBMODEL_DEVICE": "0:CPU,last:CPU"}
+
+        //update_config(config, {"++NPUW_LLM_PREFILL_CONFIG", ov::AnyMap{{"NPUW_DEVICES", "NPU,CPU"}, {"NPUW_SUBMODEL_DEVICE", "0:CPU,last:CPU"}}});
+
+        // force NPUW to use CPU for prefill model. This is needed to obtain accurate first token result.
+        update_config(config, {"++NPUW_LLM_PREFILL_CONFIG", ov::AnyMap{{"NPUW_DEVICES", "CPU"}}});
+        //update_config(config, {"++NPUW_LLM_GENERATE_CONFIG", ov::AnyMap{{"NPUW_DEVICES", "NPU"}}});
       }
 
       std::cout << "calling compile on stateful model..." << std::endl;
@@ -121,7 +129,7 @@ OVExeNetwork OVCore::CompileModel(std::shared_ptr<OVNetwork>& ie_cnn_network,
 #ifndef NDEBUG
     printDebugInfo(obj);
 #endif
-    OVExeNetwork exe(obj);
+    OVExeNetwork exe(obj, hw_target);
     return exe;
   } catch (const Exception& e) {
     ORT_THROW(log_tag + " Exception while Loading Network for graph: " + name + e.what());
@@ -140,7 +148,7 @@ OVExeNetwork OVCore::CompileModel(const std::string& onnx_model,
 #ifndef NDEBUG
     printDebugInfo(obj);
 #endif
-    OVExeNetwork exe(obj);
+    OVExeNetwork exe(obj, hw_target);
     return exe;
   } catch (const Exception& e) {
     ORT_THROW(log_tag + " Exception while Loading Network for graph: " + name + e.what());
@@ -159,7 +167,7 @@ OVExeNetwork OVCore::ImportModel(std::istream& model_stream,
 #ifndef NDEBUG
     printDebugInfo(obj);
 #endif
-    OVExeNetwork exe(obj);
+    OVExeNetwork exe(obj, hw_target);
     return exe;
   } catch (const Exception& e) {
     ORT_THROW(log_tag + " Exception while Loading Network for graph: " + name + e.what());
@@ -216,7 +224,7 @@ void OVCore::SetStreams(const std::string& device_type, int num_streams) {
 OVInferRequest OVExeNetwork::CreateInferRequest() {
   try {
     auto infReq = obj.create_infer_request();
-    OVInferRequest inf_obj(std::move(infReq));
+    OVInferRequest inf_obj(std::move(infReq), device);
     return inf_obj;
   } catch (const Exception& e) {
     ORT_THROW(log_tag + "Exception while creating InferRequest object: " + e.what());
@@ -251,16 +259,6 @@ std::string OVInferRequest::GetInputTensorName(uint32_t index) {
 void OVInferRequest::SetTensor(const std::string& name, OVTensorPtr& blob) {
   try {
     ovInfReq.set_tensor(name, *(blob.get()));
-
-    if (name == "input_ids") {
-      // Since we can't seem to set at ORT GenAI layer right now, we just set it here
-      // as a workaround.
-      // TODO: Fix this.
-      ov::Tensor beam_idx = ov::Tensor(ov::element::i32, {1});
-      std::fill_n(beam_idx.data<int32_t>(), 1, 0);
-      ovInfReq.set_tensor("beam_idx", beam_idx);
-    }
-
   } catch (const Exception& e) {
     ORT_THROW(log_tag + " Cannot set Remote Blob for output: " + name + e.what());
   } catch (...) {
@@ -274,6 +272,62 @@ uint32_t OVInferRequest::GetNumInputs() {
 
 void OVInferRequest::StartAsync() {
   try {
+    // Since we can't seem to set at ORT GenAI layer right now, we just set it here
+    // as a workaround.
+    // TODO: Fix this.
+    ov::Tensor beam_idx = ov::Tensor(ov::element::i32, {1});
+    std::fill_n(beam_idx.data<int32_t>(), 1, 0);
+    ovInfReq.set_tensor("beam_idx", beam_idx);
+
+    if (device == "NPU") {
+      auto input_ids_tensor = ovInfReq.get_tensor("input_ids");
+
+      // add input_ids to our cache
+      {
+        auto* pData = input_ids_tensor.data<int64_t>();
+        for (size_t i = 0; i < input_ids_tensor.get_size(); i++) {
+          cached_input_ids.push_back(pData[i]);
+        }
+      }
+
+      // add position_ids to our cache
+      {
+        auto position_ids = ovInfReq.get_tensor("position_ids");
+        auto* pData = position_ids.data<int64_t>();
+        for (size_t i = 0; i < position_ids.get_size(); i++) {
+          cached_position_ids.push_back(pData[i]);
+        }
+      }
+
+      // if we're about to run prefill model
+      if (input_ids_tensor.get_size() > 1) {
+        //if the input_ids size doesn't equal cached size of the input_ids
+        // then it means that we're running 2nd (or later) prompt.
+        if (input_ids_tensor.get_shape()[1] != cached_input_ids.size()) {
+          // set a new input_ids tensor with the content of our cached input_ids
+          {
+            auto new_shape = input_ids_tensor.get_shape();
+            new_shape[1] = cached_input_ids.size();
+            auto new_input_ids = ov::Tensor(input_ids_tensor.get_element_type(), new_shape);
+            auto* pNewInputIds = new_input_ids.data<int64_t>();
+            std::memcpy(pNewInputIds, cached_input_ids.data(), cached_input_ids.size() * sizeof(int64_t));
+            ovInfReq.set_tensor("input_ids", new_input_ids);
+          }
+
+          // set a new position_ids tensor with the content of our cached position_ids
+          {
+            auto position_ids_tensor = ovInfReq.get_tensor("position_ids");
+            auto new_shape = position_ids_tensor.get_shape();
+            new_shape[1] = cached_position_ids.size();
+            auto new_position_ids = ov::Tensor(position_ids_tensor.get_element_type(), new_shape);
+            auto* pNewPositionIds = new_position_ids.data<int64_t>();
+            std::memcpy(pNewPositionIds, cached_position_ids.data(), cached_position_ids.size() * sizeof(int64_t));
+            ovInfReq.set_tensor("position_ids", new_position_ids);
+          }
+        }
+      }
+    }
+
     ovInfReq.start_async();
   } catch (const Exception& e) {
     ORT_THROW(log_tag + " Couldn't start Inference: " + e.what());

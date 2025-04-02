@@ -99,16 +99,21 @@ struct OVCore : WeakSingleton<OVCore> {
 
 class OVExeNetwork {
   ov::CompiledModel obj;
+  std::string device;
 
  public:
-  explicit OVExeNetwork(ov::CompiledModel md) : obj(md) {}
-  OVExeNetwork() : obj(ov::CompiledModel()) {}
+  explicit OVExeNetwork(ov::CompiledModel md, std::string d) : obj(md), device(d) {}
+  OVExeNetwork() : obj(ov::CompiledModel()), device("NONE") {}
   ov::CompiledModel& Get() { return obj; }
   OVInferRequest CreateInferRequest();
 };
 
 class OVInferRequest {
   ov::InferRequest ovInfReq;
+  std::string device;
+
+  std::vector<int64_t> cached_input_ids;
+  std::vector<int64_t> cached_position_ids;
 
  public:
   uint32_t GetNumInputs();
@@ -119,8 +124,8 @@ class OVInferRequest {
   void Infer();
   void WaitRequest();
   void QueryStatus();
-  explicit OVInferRequest(ov::InferRequest obj) : ovInfReq(std::move(obj)) {}
-  OVInferRequest() : ovInfReq(ov::InferRequest()) {}
+  explicit OVInferRequest(ov::InferRequest obj, std::string d) : ovInfReq(std::move(obj)), device(d) {}
+  OVInferRequest() : ovInfReq(ov::InferRequest()), device("NONE") {}
   ov::InferRequest& GetNewObj() {
     return ovInfReq;
   }
