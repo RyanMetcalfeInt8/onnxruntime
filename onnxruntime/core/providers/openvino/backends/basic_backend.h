@@ -72,6 +72,10 @@ class BasicBackend : public IBackend {
 
   using ort_tensor_key_t = const std::string;
   std::map<ort_tensor_key_t, ov_tensor_data_t> ort_ov_tensor_map;
+
+  // for stateful models
+  std::map<int, std::shared_ptr<OVInferRequest>> stateful_infer_requests_;
+  int stateful_active_id_ = 0;
 };
 
 class InferRequestsQueue {

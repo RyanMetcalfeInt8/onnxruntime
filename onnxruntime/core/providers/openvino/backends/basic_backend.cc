@@ -123,23 +123,28 @@ BasicBackend::BasicBackend(std::unique_ptr<ONNX_NAMESPACE::ModelProto>& model_pr
     ORT_THROW(msg);
   }
 
-  int num_infer_req = (session_context_.num_of_threads > 0) ? session_context_.num_of_threads : 1;
-  std::function<void(OVInferRequestPtr)> initializer = [](OVInferRequestPtr) {};
-  auto metadata = shared_context_.shared_weights.metadata;
-  if (session_context_.so_share_ep_contexts) {
-    initializer = [&metadata](OVInferRequestPtr ir_ptr) {
-      const auto input_count = ir_ptr->GetNumInputs();
-      for (auto i = 0u; i < input_count; i++) {
-        using Key = SharedContext::SharedWeights::Metadata::Key;
-        const auto tensor_key = Key{ir_ptr->GetInputTensorName(i)};
-        if (metadata.contains(tensor_key)) {
-          auto& value = metadata.at(tensor_key);
-          ir_ptr->SetTensor(tensor_key.name, value.tensor);
+  if (enable_causallm) {
+    auto ov_infer_request = exe_network_.CreateInferRequest();
+    stateful_infer_requests_.insert({stateful_active_id_, ov_infer_request});
+  } else {
+    int num_infer_req = (session_context_.num_of_threads > 0) ? session_context_.num_of_threads : 1;
+    std::function<void(OVInferRequestPtr)> initializer = [](OVInferRequestPtr) {};
+    auto metadata = shared_context_.shared_weights.metadata;
+    if (session_context_.so_share_ep_contexts) {
+      initializer = [&metadata](OVInferRequestPtr ir_ptr) {
+        const auto input_count = ir_ptr->GetNumInputs();
+        for (auto i = 0u; i < input_count; i++) {
+          using Key = SharedContext::SharedWeights::Metadata::Key;
+          const auto tensor_key = Key{ir_ptr->GetInputTensorName(i)};
+          if (metadata.contains(tensor_key)) {
+            auto& value = metadata.at(tensor_key);
+            ir_ptr->SetTensor(tensor_key.name, value.tensor);
+          }
         }
-      }
-    };
+      };
+    }
+    inferRequestsQueue_ = std::unique_ptr<InferRequestsQueue>(new InferRequestsQueue(exe_network_, num_infer_req, std::move(initializer)));
   }
-  inferRequestsQueue_ = std::unique_ptr<InferRequestsQueue>(new InferRequestsQueue(exe_network_, num_infer_req, std::move(initializer)));
 }
 
 bool BasicBackend::ValidateSubgraph(std::map<std::string, std::shared_ptr<ov::Node>>& const_outputs_map) {
@@ -359,10 +364,13 @@ void BasicBackend::SetNumThreads(ov::AnyMap& device_config) {
 }
 
 void BasicBackend::RewindKVCache(size_t index) {
-  OVInferRequestPtr infer_request;
-  infer_request = inferRequestsQueue_->getIdleRequest();
-  infer_request->RewindKVCache(index);
-  inferRequestsQueue_->putIdleRequest(std::move(infer_request));
+  if (session_context_.enable_causallm) {
+    auto active_statful_request_found = stateful_infer_requests_.find(stateful_active_id_);
+    if (active_statful_request_found != stateful_infer_requests_.end()) {
+      OVInferRequestPtr infer_request = active_statful_request_found->second;
+      infer_request->RewindKVCache(index);
+    }
+  }
 }
 
 // Starts an asynchronous inference request for data in slice indexed by batch_slice_idx on
@@ -729,9 +737,18 @@ void BasicBackend::Infer(OrtKernelContext* ctx) {
     }
 
   } else {
-    // Requesting for an idle infer_request from a pool of infer_requests_
     OVInferRequestPtr infer_request;
-    infer_request = inferRequestsQueue_->getIdleRequest();
+    if (session_context_.enable_causallm) {
+      auto active_statful_request_found = stateful_infer_requests_.find(stateful_active_id_);
+      if (active_statful_request_found != stateful_infer_requests_.end()) {
+        infer_request = active_statful_request_found->second;
+      } else {
+        ORT_THROW("Stateful infer request for active id=" + std::to_string(stateful_active_id_) + " not found.");
+      }
+    } else {
+      // Requesting for an idle infer_request from a pool of infer_requests_
+      infer_request = inferRequestsQueue_->getIdleRequest();
+    }
 #ifdef IO_BUFFER_ENABLED
     if ((session_context_.device_type.find("GPU") != std::string::npos) &&
         (session_context_.context != nullptr) && session_context_.is_wholly_supported_graph) {
@@ -772,8 +789,10 @@ void BasicBackend::Infer(OrtKernelContext* ctx) {
     // thus we dont have any dangling ptr leading to seg faults in the debug mode subsequent execution call
     OVInferRequestPtr infer_request_ = infer_request;
 
-    // Once the inference is completed, the infer_request becomes free and is placed back into pool of infer_requests_
-    inferRequestsQueue_->putIdleRequest(std::move(infer_request));
+    if (!session_context_.enable_causallm) {
+      // Once the inference is completed, the infer_request becomes free and is placed back into pool of infer_requests_
+      inferRequestsQueue_->putIdleRequest(std::move(infer_request));
+    }
 #ifndef NDEBUG
 #ifndef IO_BUFFER_ENABLED  // Printing performance counts is disabled when IO_BUFFER_ENABLED
     if (openvino_ep::backend_utils::IsDebugEnabled()) {
