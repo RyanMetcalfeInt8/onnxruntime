@@ -403,6 +403,13 @@ void OVInferRequest::QueryStatus() {
             << " ";
 }
 
+StatefulOVInferRequest::StatefulOVInferRequest(ov::InferRequest obj, std::string d)
+    : OVInferRequest(std::move(obj)), device(d) {
+  if ((device.find("NPU") != std::string::npos) || (device.find("GPU") != std::string::npos)) {
+    _full_chat_history_prefill = true;
+  }
+}
+
 void StatefulOVInferRequest::_pre_infer() {
   // Since we can't seem to set at ORT GenAI layer right now, we just set it here
   // as a workaround.
@@ -411,9 +418,8 @@ void StatefulOVInferRequest::_pre_infer() {
   std::fill_n(beam_idx.data<int32_t>(), 1, 0);
   ovInfReq.set_tensor("beam_idx", beam_idx);
 
-  // For NPU, we need to cache input_ids and position_ids for
-  // chat-mode support.
-  if (device.find("NPU") != std::string::npos) {
+  // If 'full chat history' mode is enabled, we need to cache input_ids and position_ids.
+  if (_full_chat_history_prefill) {
     auto input_ids_tensor = ovInfReq.get_tensor("input_ids");
 
     // add input_ids to our cache
@@ -438,6 +444,9 @@ void StatefulOVInferRequest::_pre_infer() {
       // if the input_ids size doesn't equal cached size of the input_ids
       //  then it means that we're running 2nd (or later) prompt.
       if (input_ids_tensor.get_shape()[1] != cached_input_ids.size()) {
+        // Clear the internal KVCache state (note: this is a no-op for NPU)
+        ovInfReq.reset_state();
+
         // set a new input_ids tensor with the content of our cached input_ids
         {
           auto new_shape = input_ids_tensor.get_shape();
@@ -474,7 +483,10 @@ void StatefulOVInferRequest::Infer() {
 }
 
 void StatefulOVInferRequest::RewindKVCache(size_t index) {
-  if (device == "NPU") {
+  if (_full_chat_history_prefill) {
+    // Clear the internal KVCache state (note: this is a no-op for NPU)
+    ovInfReq.reset_state();
+
     std::cout << "RewindKVCache on NPU: Trimming cached input_ids / position_ids to length "
               << index << std::endl;
     if (cached_input_ids.size() > index) {

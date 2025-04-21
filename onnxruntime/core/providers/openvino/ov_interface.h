@@ -138,7 +138,7 @@ class OVInferRequest {
 
 class StatefulOVInferRequest : public OVInferRequest {
  public:
-  explicit StatefulOVInferRequest(ov::InferRequest obj, std::string d) : OVInferRequest(std::move(obj)), device(d) {}
+  explicit StatefulOVInferRequest(ov::InferRequest obj, std::string d);
 
   void StartAsync() override;
   void Infer() override;
@@ -148,7 +148,9 @@ class StatefulOVInferRequest : public OVInferRequest {
   void _pre_infer();
   std::string device;
 
-  // For NPU, we need to cache input_ids & position_ids to support chat-mode.
+  // If _full_chat_history_prefill is true, cache input_ids & position_ids,
+  // and ensure that the full chat history is passed to each prefill.
+  bool _full_chat_history_prefill = false;
   std::vector<int64_t> cached_input_ids;
   std::vector<int64_t> cached_position_ids;
 };
