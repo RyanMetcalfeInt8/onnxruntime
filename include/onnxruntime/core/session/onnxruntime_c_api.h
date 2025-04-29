@@ -2880,6 +2880,7 @@ struct OrtApi {
   ORT_API2_STATUS(AddRunConfigEntry, _Inout_ OrtRunOptions* options,
                   _In_z_ const char* config_key, _In_z_ const char* config_value);
 
+
   /// @}
   /// \name OrtPrepackedWeightsContainer
   /// @{
@@ -5185,6 +5186,10 @@ struct OrtApi {
    * \since Version 1.22.
    */
   const OrtHardwareDevice*(ORT_API_CALL* EpDevice_Device)(_In_ const OrtEpDevice* ep_device);
+
+
+  ORT_API2_STATUS(RunOptions_SetProviderOptions, _Inout_ OrtRunOptions* options,
+                  _In_z_ const char* provider, _In_z_ const char* option_key, _In_z_ const char* option_value);
 };
 
 /*

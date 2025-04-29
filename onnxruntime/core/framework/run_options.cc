@@ -71,3 +71,12 @@ ORT_API_STATUS_IMPL(OrtApis::RunOptionsAddActiveLoraAdapter, _Inout_ OrtRunOptio
   return nullptr;
   API_IMPL_END
 }
+
+ORT_API_STATUS_IMPL(OrtApis::RunOptions_SetProviderOptions, _Inout_ OrtRunOptions* options,
+                    _In_z_ const char* provider, _In_z_ const char* option_key, _In_z_ const char* option_value) {
+  (void)options;
+  (void)provider;
+  (void)option_key;
+  (void)option_value;
+  return nullptr;
+}

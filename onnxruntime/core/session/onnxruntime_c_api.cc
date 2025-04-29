@@ -3012,6 +3012,8 @@ static constexpr OrtApi ort_api_1_to_22 = {
     &OrtApis::EpDevice_EpMetadata,
     &OrtApis::EpDevice_EpOptions,
     &OrtApis::EpDevice_Device,
+
+    &OrtApis::RunOptions_SetProviderOptions,
 };
 
 // OrtApiBase can never change as there is no way to know what version of OrtApiBase is returned by OrtGetApiBase.
