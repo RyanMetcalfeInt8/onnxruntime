@@ -188,6 +188,7 @@ std::tuple<std::shared_ptr<ov::Node>, int64_t> FindLLMMatmul(const std::shared_p
   // MatMul -> Add -> Result
   // MatMul -> Transpose -> Result
   // MatMul -> Divide -> Tanh -> Multiply -> Result
+  // MatMul -> Convert -> Result
   if (!matmul) {
     if (auto add = ov::as_type_ptr<ov::op::v1::Add>(last_node)) {
       matmul = ov::as_type_ptr<ov::op::v0::MatMul>(add->input_value(0).get_node_shared_ptr());
@@ -201,6 +202,8 @@ std::tuple<std::shared_ptr<ov::Node>, int64_t> FindLLMMatmul(const std::shared_p
           matmul = ov::as_type_ptr<ov::op::v0::MatMul>(divide->input_value(0).get_node_shared_ptr());
         }
       }
+    } else if (auto convert = ov::as_type_ptr<ov::op::v0::Convert>(last_node)) {
+      matmul = ov::as_type_ptr<ov::op::v0::MatMul>(convert->input_value(0).get_node_shared_ptr());
     }
   }
   return std::make_tuple(matmul, slice_gather_dim);
@@ -210,6 +213,7 @@ void ApplySliceBeforeMatmulTransformation(std::shared_ptr<ov::Model> model) {
   std::shared_ptr<ov::Node> matmul = nullptr;
   int64_t slice_gather_dim = -1;
   std::tie(matmul, slice_gather_dim) = FindLLMMatmul(model);
+
 
   if (matmul && matmul->input(0).get_partial_shape().rank().get_length() == 3) {
     auto start = std::make_shared<ov::op::v0::Constant>(ov::element::i64, ov::Shape{1}, std::vector<int64_t>{-1});
