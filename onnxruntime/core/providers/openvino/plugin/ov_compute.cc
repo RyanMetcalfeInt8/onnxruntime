@@ -21,10 +21,10 @@ OvComputeInfo::OvComputeInfo(ApiPtrs apis, ov::Core& ov_core) : ApiPtrs(apis), o
   OrtNodeComputeInfo::ReleaseState = ReleaseStateImpl;
 }
 
-OrtStatus* OvComputeInfo::Init(const std::string& ov_device, OnnxIOMapping io_mapping, EpContextNode ep_context_node) {
+OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node) {
   ov::AnyMap configs = {}; /* no configs yet*/
 
-  switch (ep_context_node.type_) {
+  switch (ep_context_node.private_fields_.type) {
     case EpContextNode::EpContextType::Native:
       if (ep_context_node.embed_mode == 1) {
         std::istringstream model_stream(std::move(ep_context_node.ep_cache_context));
@@ -46,7 +46,7 @@ OrtStatus* OvComputeInfo::Init(const std::string& ov_device, OnnxIOMapping io_ma
   return nullptr;
 }
 
-OrtStatus* OvComputeInfo::Init(const std::string& ov_device, OnnxIOMapping io_mapping, std::unique_ptr<onnx::GraphProto> graph_proto) {
+OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::GraphProto> graph_proto) {
   ov::AnyMap configs = {}; /* no configs yet*/
 
   auto model_proto = std::make_unique<onnx::ModelProto>();
@@ -62,6 +62,18 @@ OrtStatus* OvComputeInfo::Init(const std::string& ov_device, OnnxIOMapping io_ma
   infer_request_pool_ = std::make_unique<InferRequestPool>(compiled_model_, 1, [](InferRequestPool::OVInferRequestPtr&) {});
   onnx_to_ov_bindings_ = std::make_unique<OnnxToOvNetworkBindings>(compiled_model_, io_mapping, SessionContext{});
 
+  return nullptr;
+}
+
+OrtStatus* OvComputeInfo::Export(EpContextNode& epctx_node) {
+  if (epctx_node.embed_mode) {
+    std::stringstream ss;
+    compiled_model_.export_model(ss);
+    epctx_node.ep_cache_context = std::move(ss).str();
+  } else {
+    std::ofstream output_file(epctx_node.ep_cache_context, std::ios_base::binary);
+    compiled_model_.export_model(output_file);
+  }
   return nullptr;
 }
 

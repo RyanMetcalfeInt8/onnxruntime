@@ -69,6 +69,22 @@ struct OrtEpLibraryOv : public ::testing::Test {
     RunModelWithSession(session);
   }
 
+  void GenerateEpContextOnPluginPath(std::filesystem::path epctx, bool embed_mode) {
+    Ort::SessionOptions session_options{};
+    std::filesystem::remove(epctx);
+    // Add config option to enable EP context
+    session_options.SetGraphOptimizationLevel(ORT_DISABLE_ALL);
+    session_options.AddConfigEntry(kOrtSessionOptionEpContextEnable, "1");
+    session_options.AddConfigEntry(kOrtSessionOptionEpContextFilePath, epctx.string().c_str());
+    session_options.AddConfigEntry(kOrtSessionOptionEpContextEmbedMode, embed_mode ? "1" : "0");
+    Ort::ConstEpDevice plugin_ep_device = GetOvCpuEpDevice();
+    ASSERT_NE(plugin_ep_device, nullptr);
+    std::unordered_map<std::string, std::string> ep_options;
+    session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+    Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+    RunModelWithSession(session);
+  }
+
   Ort::ConstEpDevice GetOvCpuEpDevice() {
     auto ep_devices = ort_env->GetEpDevices();
     Ort::ConstEpDevice plugin_ep_device{};
@@ -131,12 +147,13 @@ TEST_F(OrtEpLibraryOv, PluginEp_PreferCpu_MulInference) {
   RunModelWithPluginEp(session_options);
 }
 
+struct EpCtxTestCases {
+  const ORTCHAR_T* ctx_filename;
+  bool embed_mode;
+};
+
 TEST_F(OrtEpLibraryOv, PluginEp_AppendV2_cpu_epctx_variants) {
-  struct TestCase {
-    const ORTCHAR_T* ctx_filename;
-    bool embed_mode;
-  };
-  std::vector<TestCase> test_cases = {
+  std::vector<EpCtxTestCases> test_cases = {
       {ORT_TSTR("mul_1_ctx_cpu_embed1.onnx"), true},
       {ORT_TSTR("mul_1_ctx_cpu_embed0.onnx"), false}};
 
@@ -145,6 +162,33 @@ TEST_F(OrtEpLibraryOv, PluginEp_AppendV2_cpu_epctx_variants) {
 
   for (const auto& test_case : test_cases) {
     GenerateEpContextOnLegacyPath(test_case.ctx_filename, test_case.embed_mode);
+
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+    session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+    Ort::Session session(*ort_env, test_case.ctx_filename, session_options);
+    RunModelWithSession(session);
+  }
+}
+
+TEST_F(OrtEpLibraryOv, GenerateEpContextEmbedded) {
+  GenerateEpContextOnPluginPath(ORT_TSTR("mul_1_ctx_cpu_embed1.onnx"), true);
+}
+
+TEST_F(OrtEpLibraryOv, GenerateEpContext) {
+  GenerateEpContextOnPluginPath(ORT_TSTR("mul_1_ctx_cpu_embed0.onnx"), false);
+}
+
+TEST_F(OrtEpLibraryOv, OrtEpLibraryOv_PluginEp_AppendV2_cpu_epctx_plugin_roundtrip) {
+  std::vector<EpCtxTestCases> test_cases = {
+      {ORT_TSTR("mul_1_ctx_cpu_embed1.onnx"), true},
+      {ORT_TSTR("mul_1_ctx_cpu_embed0.onnx"), false}};
+
+  auto plugin_ep_device = GetOvCpuEpDevice();
+  ASSERT_NE(plugin_ep_device, nullptr);
+
+  for (const auto& test_case : test_cases) {
+    GenerateEpContextOnPluginPath(test_case.ctx_filename, test_case.embed_mode);
 
     Ort::SessionOptions session_options;
     std::unordered_map<std::string, std::string> ep_options;

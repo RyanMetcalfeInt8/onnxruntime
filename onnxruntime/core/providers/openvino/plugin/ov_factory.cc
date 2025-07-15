@@ -182,8 +182,11 @@ OrtStatus* OpenVINOEpPluginFactory::CreateEp(const OrtHardwareDevice* const* dev
     ov_device_string += value;
   }
 
+  OpenVINOEpPluginOptions options;
+  RETURN_IF_ERROR(options.Init(ort_api, *session_options));
+
   // Create a new OpenVINO execution provider with this factory's device type
-  auto ov_ep = std::make_unique<OpenVINOEpPlugin>(*this, ep_name_, *session_options, *logger, ov_device_string, ov_core_);
+  auto ov_ep = std::make_unique<OpenVINOEpPlugin>(*this, ep_name_, std::move(options), *logger, ov_device_string, ov_core_);
   *ep = ov_ep.release();
   return nullptr;
 }
@@ -216,7 +219,7 @@ extern "C" {
 OrtStatus* CreateEpFactories(const char* registration_name, const OrtApiBase* ort_api_base,
                              OrtEpFactory** factories, size_t max_factories, size_t* num_factories) {
   InitCxxApi(*ort_api_base);
-  const ApiPtrs api_ptrs{Ort::GetApi(), Ort::GetEpApi()};
+  const ApiPtrs api_ptrs{Ort::GetApi(), Ort::GetEpApi(), Ort::GetModelEditorApi()};
 
   // Get available devices from OpenVINO
   auto ov_core = ov_core_singleton::Get();

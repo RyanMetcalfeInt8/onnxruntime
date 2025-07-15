@@ -47,12 +47,25 @@ namespace openvino_ep {
 struct ApiPtrs {
   const OrtApi& ort_api;
   const OrtEpApi& ep_api;
+  const OrtModelEditorApi& model_editor_api;
+};
+
+struct EpContextSessionConfig {
+  bool enable_{false};
+  bool embed_{false};
+  bool share_{false};
+  std::filesystem::path path_{};
+};
+
+struct OpenVINOEpPluginOptions {
+  EpContextSessionConfig ep_ctx_;
+  OrtStatus* Init(const OrtApi& ort_api, const OrtSessionOptions& session_options);
 };
 
 class OpenVINOEpPlugin : public OrtEp,
                          public ApiPtrs {
  public:
-  OpenVINOEpPlugin(ApiPtrs apis, const std::string& name, const OrtSessionOptions& session_options, const OrtLogger& logger, const std::string ov_device_type, std::shared_ptr<ov::Core> ov_core);
+  OpenVINOEpPlugin(ApiPtrs apis, const std::string& name, const OpenVINOEpPluginOptions& options, const OrtLogger& logger, const std::string ov_device_type, std::shared_ptr<ov::Core> ov_core);
   ~OpenVINOEpPlugin();
 
   OVEP_DISABLE_COPY_AND_MOVE(OpenVINOEpPlugin)
@@ -97,6 +110,7 @@ class OpenVINOEpPlugin : public OrtEp,
   const OrtLogger& logger_;
   std::string ov_device_type_;  // OpenVINO device type (CPU, GPU, NPU, AUTO, etc.)
   std::shared_ptr<ov::Core> ov_core_;
+  const OpenVINOEpPluginOptions options_;
 };
 
 }  // namespace openvino_ep
