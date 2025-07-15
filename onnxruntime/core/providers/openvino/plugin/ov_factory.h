@@ -83,12 +83,12 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
 
  public:
   // Static callback methods for the OrtEpFactory interface
-  static const char* ORT_API_CALL GetNameImpl(const OrtEpFactory* this_ptr) {
+  static const char* ORT_API_CALL GetNameImpl(const OrtEpFactory* this_ptr) noexcept {
     const auto* factory = static_cast<const OpenVINOEpPluginFactory*>(this_ptr);
     return factory->GetName();
   }
 
-  static const char* ORT_API_CALL GetVendorImpl(const OrtEpFactory* this_ptr) {
+  static const char* ORT_API_CALL GetVendorImpl(const OrtEpFactory* this_ptr) noexcept {
     const auto* factory = static_cast<const OpenVINOEpPluginFactory*>(this_ptr);
     return factory->GetVendor();
   }
@@ -98,7 +98,7 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
                                                          size_t num_devices,
                                                          OrtEpDevice** ep_devices,
                                                          size_t max_ep_devices,
-                                                         size_t* p_num_ep_devices) {
+                                                         size_t* p_num_ep_devices) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
     return factory->GetSupportedDevices(devices, num_devices, ep_devices, max_ep_devices, p_num_ep_devices);
   }
@@ -108,11 +108,11 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
                                               _In_ size_t num_devices,
                                               _In_ const OrtSessionOptions* session_options,
                                               _In_ const OrtLogger* logger,
-                                              _Out_ OrtEp** ep) {
+                                              _Out_ OrtEp** ep) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
     return factory->CreateEp(devices, ep_metadata, num_devices, session_options, logger, ep);
   }
-  static void ORT_API_CALL ReleaseEpImpl(OrtEpFactory* this_ptr, OrtEp* ep) {
+  static void ORT_API_CALL ReleaseEpImpl(OrtEpFactory* this_ptr, OrtEp* ep) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
     factory->ReleaseEp(ep);
   }
