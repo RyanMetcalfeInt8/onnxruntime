@@ -79,27 +79,27 @@ class OpenVINOEpPlugin : public OrtEp,
   void ReleaseNodeComputeInfos(OrtNodeComputeInfo** node_compute_infos, size_t num_node_compute_infos);
 
   // Static wrapper functions for C API compatibility
-  static const char* ORT_API_CALL GetNameImpl(const OrtEp* this_ptr) {
+  static const char* ORT_API_CALL GetNameImpl(const OrtEp* this_ptr) noexcept {
     const auto* ep = static_cast<const OpenVINOEpPlugin*>(this_ptr);
     return ep->GetName();
   }
 
   static OrtStatus* ORT_API_CALL GetCapabilityImpl(OrtEp* this_ptr, const OrtGraph* graph,
-                                                   OrtEpGraphSupportInfo* graph_support_info) {
+                                                   OrtEpGraphSupportInfo* graph_support_info) noexcept {
     auto* ep = static_cast<OpenVINOEpPlugin*>(this_ptr);
     return ep->GetCapability(graph, graph_support_info);
   }
 
   static OrtStatus* ORT_API_CALL CompileImpl(OrtEp* this_ptr, const OrtGraph** graphs, const OrtNode** fused_nodes,
                                              size_t count, OrtNodeComputeInfo** node_compute_infos,
-                                             OrtNode** ep_context_nodes) {
+                                             OrtNode** ep_context_nodes) noexcept {
     auto* ep = static_cast<OpenVINOEpPlugin*>(this_ptr);
     return ep->Compile(graphs, fused_nodes, count, node_compute_infos, ep_context_nodes);
   }
 
   static void ORT_API_CALL ReleaseNodeComputeInfosImpl(OrtEp* this_ptr,
                                                        OrtNodeComputeInfo** node_compute_infos,
-                                                       size_t num_node_compute_infos) {
+                                                       size_t num_node_compute_infos) noexcept {
     auto* ep = static_cast<OpenVINOEpPlugin*>(this_ptr);
     ep->ReleaseNodeComputeInfos(node_compute_infos, num_node_compute_infos);
   }
