@@ -411,6 +411,7 @@ else:
     libs.extend(["onnxruntime_providers_tensorrt.dll"])
     libs.extend(["onnxruntime_providers_nv_tensorrt_rtx.dll"])
     libs.extend(["onnxruntime_providers_openvino.dll"])
+    libs.extend(["onnxruntime_providers_openvino_plugin.dll"])
     libs.extend(["onnxruntime_providers_cuda.dll"])
     libs.extend(["onnxruntime_providers_vitisai.dll"])
     libs.extend(["onnxruntime_providers_qnn.dll"])
