@@ -231,7 +231,7 @@ OrtStatus* OvComputeInfoStateful::Compute(void* /*compute_state*/,
   }
 
   // pre-inference
-  RETURN_IF_ERROR(pre_infer_());
+  OVEP_RETURN_IF_ERROR(pre_infer_());
 
   // Run Inference
   _infer_request->Infer();
@@ -241,9 +241,9 @@ OrtStatus* OvComputeInfoStateful::Compute(void* /*compute_state*/,
     auto ov_tensor = _infer_request->ov().get_tensor(output_info.name);
     auto output_shape = ParameterShape::ToOrtShape(ov_tensor.get_shape());
     auto ort_tensor = context.GetOutput(output_info.onnx_index, output_shape);
-    RETURN_IF(ov_tensor.get_byte_size() != ort_tensor.GetTensorSizeInBytes(),
-              ort_api,
-              std::format("Output tensor size mismatch for {}", output_info.name).c_str());
+    OVEP_RETURN_IF(ov_tensor.get_byte_size() != ort_tensor.GetTensorSizeInBytes(),
+                   ort_api,
+                   std::format("Output tensor size mismatch for {}", output_info.name).c_str());
 
     std::memcpy(ort_tensor.GetTensorMutableRawData(),
                 ov_tensor.data(),
