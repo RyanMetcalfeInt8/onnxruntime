@@ -125,7 +125,7 @@ std::unique_ptr<std::istream> EPCtxHandler::GetModelBlobStream(const std::filesy
     result.reset((std::istream*)new std::ifstream(blob_filepath, std::ios_base::binary | std::ios_base::in));
   }
 
-  bool isXML = backend_utils::IsModelStreamXML(*result);
+  bool isXML = utils::IsModelStreamXML(*result);
   if (!isXML) {
     // If the model stream is not an XML (i.e. precompiled blob), the OpenVINO SDK version that it was
     // exported with must match the version that is currently running.

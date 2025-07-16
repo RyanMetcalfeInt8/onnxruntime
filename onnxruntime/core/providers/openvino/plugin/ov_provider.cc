@@ -132,7 +132,7 @@ OrtStatus* OpenVINOEpPlugin::GetCapability(const OrtGraph* graph, OrtEpGraphSupp
     RETURN_IF_ERROR(node_info.Init(ort_api, node_ptr));
 
     // Check if this operation is supported
-    bool is_ep_context_node = supported_ops.IsEpContextNode(node_info.op_type, node_info.domain);
+    const bool is_ep_context_node = node_info.is_ep_context;
     if (supported_ops.IsOpSupported(node_info.op_type, node_info.domain) && !is_ep_context_node) {
       supported_nodes.push_back(node_ptr);
     } else {
@@ -189,7 +189,8 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       node.partition_name = fused_node_name;
 
       auto containing_dir = options_.ep_ctx_.path_.parent_path();
-      auto context_filename = std::filesystem::path(fused_node_name).replace_extension("onnx");
+      auto context_filename = std::string(fused_node_name) + ".blob";
+
       node.ep_cache_context = (containing_dir / context_filename).string();
 
       node.private_fields_.node_name = fused_node_name;
@@ -208,7 +209,8 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       const OrtNode* node = nodes[0];
       RETURN_IF_ERROR(node_info.Init(ort_api, node));
       if (node_info.is_ep_context) {
-        EpContextNode ep_context_node(*this, node);
+        EpContextNode ep_context_node(*this);
+        RETURN_IF_ERROR(ep_context_node.Init(node));
         RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(ep_context_node)));
         RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
         node_compute_infos[i] = ov_compute.release();

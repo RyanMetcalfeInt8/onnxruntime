@@ -215,7 +215,7 @@ OVExeNetwork OVCore::ImportEPCtxOVIREncapsulation(std::istream& model_stream,
   return OvExceptionBoundary([&]() {
     OVExeNetwork exe;
 
-    bool isXML = backend_utils::IsModelStreamXML(model_stream);
+    bool isXML = utils::IsModelStreamXML(model_stream);
 
     // Helper function to check if file exists and is readable
     const auto check_file_access = [&model_file_path](const std::filesystem::path& path) {

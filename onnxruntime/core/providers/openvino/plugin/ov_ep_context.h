@@ -5,8 +5,11 @@
 
 #include <string>
 #include <cstdint>
+#include <fstream>
+#include <format>
 
 #include "ov_provider.h"
+#include "../common/ov_common_utils.h"
 
 template <typename T>
 struct DeferOrtRelease {
@@ -58,10 +61,9 @@ struct EpContextNode : ApiPtrs {
   } private_fields_;
 
   EpContextNode(ApiPtrs apis) : ApiPtrs(apis) {}
-  EpContextNode(ApiPtrs apis, const OrtNode* node)
-      : ApiPtrs(apis) {
-    // Helper lambda to extract attribute values
 
+  OrtStatus* Init(const OrtNode* node) {
+    // Helper lambda to extract attribute values
     auto get_attr_int64 = [&](const char* name, int64_t default_val) -> int64_t {
       int64_t val = default_val;
       const OrtOpAttr* attr = nullptr;
@@ -120,8 +122,23 @@ struct EpContextNode : ApiPtrs {
     source = get_attr_string("source");
     notes = get_attr_string("notes");
     max_size = get_attr_int64("max_size", 0);
-    private_fields_.type = EpContextType::Native;
-    private_fields_.node_name = "OpenVINO_EP_Node";
+
+    private_fields_ = private_fields{};
+
+    if (embed_mode == 1) {
+      if (utils::IsXmlHeader(ep_cache_context)) {
+        private_fields_.type = EpContextType::OV_IR;
+      }
+    } else {
+      std::ifstream ep_ctx_file(ep_cache_context, std::ios::binary);
+      RETURN_IF(ep_ctx_file.fail(), ort_api, std::format("Could not open EP context file {}", ep_cache_context).c_str());
+
+      if (utils::IsModelStreamXML(ep_ctx_file)) {
+        private_fields_.type = EpContextType::OV_IR;
+      }
+    }
+
+    return nullptr;
   }
 
   OrtStatus* CreateNode(const OnnxIOMapping& io_map, OrtNode*& node) {

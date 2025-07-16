@@ -15,6 +15,8 @@
 #include "core/session/onnxruntime_cxx_api.h"
 #include "core/providers/openvino/contexts.h"
 #include "core/providers/openvino/ov_interface.h"
+#include "common/ov_common_utils.h"
+
 #ifdef _WIN32
 #include <direct.h>
 #define GetCurrentDir _getcwd
@@ -106,8 +108,6 @@ void printPerformanceCounts(const std::vector<OVProfilingInfo>& performanceMap,
                             std::ostream& stream, std::string deviceName);
 
 void printPerformanceCounts(OVInferRequestPtr request, std::ostream& stream, std::string deviceName);
-
-bool IsModelStreamXML(std::istream& model_stream);
 
 }  // namespace backend_utils
 }  // namespace openvino_ep

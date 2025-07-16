@@ -427,7 +427,7 @@ void DataOps::populate_op_mode_supported() {
                                // [TODO] Is this condition required anymore with Myriad removed?
                                if (shape != nullptr) {
                                  for (const auto& dim : input_arg->Shape()->dim()) {
-                                   if (utils::HasDimValue(dim) && dim.dim_value() == 0)
+                                   if (onnxruntime::utils::HasDimValue(dim) && dim.dim_value() == 0)
                                      return true;
                                  }
                                }
@@ -793,7 +793,7 @@ bool DataOps::node_is_supported(const NodeIndex node_idx, bool& has_external_wei
       } else {
         // Zero dimension check
         for (const auto& dim : shape->dim()) {
-          if (utils::HasDimValue(dim) && dim.dim_value() == 0) {
+          if (onnxruntime::utils::HasDimValue(dim) && dim.dim_value() == 0) {
             if (((device_id_.find("CPU") != std::string::npos) || (device_id_.find("GPU") != std::string::npos)) &&
                 ((optype == "Expand") || (optype == "Equal") ||
                  (optype == "Slice") || (optype == "Concat") ||
