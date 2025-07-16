@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <format>
 
 #include "ov_compute.h"
 #include "ov_ep_context.h"
@@ -121,9 +122,9 @@ OrtStatus* OvComputeInfo::Compute(void* /*compute_state*/,
       auto output_shape = ParameterShape::ToOrtShape(ov_tensor.get_shape());
       auto ort_tensor = context.GetOutput(output_info.onnx_index, output_shape);
 
-      RETURN_IF(ov_tensor.get_byte_size() == ort_tensor.GetTensorSizeInBytes(),
-                ort_api,
-                std::format("Output tensor size mismatch for {}", output_info.name).c_str());
+      OVEP_RETURN_IF(ov_tensor.get_byte_size() == ort_tensor.GetTensorSizeInBytes(),
+                     ort_api,
+                     std::format("Output tensor size mismatch for {}", output_info.name).c_str());
 
       std::memcpy(ort_tensor.GetTensorMutableRawData(),
                   ov_tensor.data(),

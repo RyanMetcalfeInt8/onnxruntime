@@ -35,8 +35,6 @@ class WrappedInferRequest {
   std::unordered_map<std::string, ov_tensor_data_t> bindings_cache_;
 
  public:
-  std::string GetInputTensorName(uint32_t index);
-
   // Set tensor call infer req tensor if ort_ptr differs from last set ptr.
   void SetTensor(const std::string& name, const ov::element::Type& type, const ov::Shape& shape, void* ort_ptr) {
     auto& cached_binding = bindings_cache_[name];
@@ -45,14 +43,6 @@ class WrappedInferRequest {
       auto ov_tensor = std::make_unique<ov::Tensor>(type, shape, ort_ptr);
       ov_inf_req_.set_tensor(name, *ov_tensor);
       cached_binding = {std::move(ov_tensor), ort_ptr};
-    }
-  }
-  void GetTensor(const std::string& name, ov::Tensor& out_tensor) {
-    auto it = bindings_cache_.find(name);
-    if (it != bindings_cache_.end()) {
-      out_tensor = *(it->second.tensor_ptr);
-    } else {
-      throw std::runtime_error("Tensor not found: " + name);
     }
   }
 
@@ -175,15 +165,15 @@ struct OnnxIOMapping {
     std::vector<const OrtValueInfo*> io;
     size_t num_elements = 0;
 
-    RETURN_IF_ERROR(ort_api.Node_GetNumInputs(&node, &num_elements));
+    OVEP_RETURN_IF_ERROR(ort_api.Node_GetNumInputs(&node, &num_elements));
     io.resize(num_elements);
-    RETURN_IF_ERROR(ort_api.Node_GetInputs(&node, io.data(), io.size()));
-    RETURN_IF_ERROR(PopulateNames(ort_api, io, input_names));
+    OVEP_RETURN_IF_ERROR(ort_api.Node_GetInputs(&node, io.data(), io.size()));
+    OVEP_RETURN_IF_ERROR(PopulateNames(ort_api, io, input_names));
 
-    RETURN_IF_ERROR(ort_api.Node_GetNumOutputs(&node, &num_elements));
+    OVEP_RETURN_IF_ERROR(ort_api.Node_GetNumOutputs(&node, &num_elements));
     io.resize(num_elements);
-    RETURN_IF_ERROR(ort_api.Node_GetOutputs(&node, io.data(), io.size()));
-    RETURN_IF_ERROR(PopulateNames(ort_api, io, output_names));
+    OVEP_RETURN_IF_ERROR(ort_api.Node_GetOutputs(&node, io.data(), io.size()));
+    OVEP_RETURN_IF_ERROR(PopulateNames(ort_api, io, output_names));
     return nullptr;
   }
 
@@ -191,15 +181,15 @@ struct OnnxIOMapping {
     std::vector<const OrtValueInfo*> io;
     size_t num_elements = 0;
 
-    RETURN_IF_ERROR(ort_api.Graph_GetNumInputs(&graph, &num_elements));
+    OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNumInputs(&graph, &num_elements));
     io.resize(num_elements);
-    RETURN_IF_ERROR(ort_api.Graph_GetInputs(&graph, io.data(), io.size()));
-    RETURN_IF_ERROR(PopulateNames(ort_api, io, input_names));
+    OVEP_RETURN_IF_ERROR(ort_api.Graph_GetInputs(&graph, io.data(), io.size()));
+    OVEP_RETURN_IF_ERROR(PopulateNames(ort_api, io, input_names));
 
-    RETURN_IF_ERROR(ort_api.Graph_GetNumOutputs(&graph, &num_elements));
+    OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNumOutputs(&graph, &num_elements));
     io.resize(num_elements);
-    RETURN_IF_ERROR(ort_api.Graph_GetOutputs(&graph, io.data(), io.size()));
-    RETURN_IF_ERROR(PopulateNames(ort_api, io, output_names));
+    OVEP_RETURN_IF_ERROR(ort_api.Graph_GetOutputs(&graph, io.data(), io.size()));
+    OVEP_RETURN_IF_ERROR(PopulateNames(ort_api, io, output_names));
     return nullptr;
   }
 
@@ -207,7 +197,7 @@ struct OnnxIOMapping {
   static OrtStatus* PopulateNames(const OrtApi& ort_api, std::vector<const OrtValueInfo*>& io_nodes, std::vector<std::string>& names_vec) {
     for (const auto& value_info : io_nodes) {
       const char* name = nullptr;
-      RETURN_IF_ERROR(ort_api.GetValueInfoName(value_info, &name));
+      OVEP_RETURN_IF_ERROR(ort_api.GetValueInfoName(value_info, &name));
       if (name) {
         names_vec.emplace_back(name);
       }
@@ -265,9 +255,9 @@ struct OnnxToOvNetworkBindings {
           }
         }
 
-        // ORT_ENFORCE(matched_names, log_tag,
-        //             "Input names mismatch between OpenVINO and ONNX. ", onnx_name,
-        //             " doesn't exist in the list of OpenVINO input tensor names");
+        OVEP_ENFORCE(matched_names,
+                     "Input names mismatch between OpenVINO and ONNX. ", onnx_name,
+                     " doesn't exist in the list of OpenVINO input tensor names");
 
         uint32_t ov_param_index = gsl::narrow<uint32_t>(std::distance(ov_parameters.begin(), it));
 

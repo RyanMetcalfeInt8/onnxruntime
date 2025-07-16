@@ -131,7 +131,7 @@ struct EpContextNode : ApiPtrs {
       }
     } else {
       std::ifstream ep_ctx_file(ep_cache_context, std::ios::binary);
-      RETURN_IF(ep_ctx_file.fail(), ort_api, std::format("Could not open EP context file {}", ep_cache_context).c_str());
+      OVEP_RETURN_IF(ep_ctx_file.fail(), ort_api, std::format("Could not open EP context file {}", ep_cache_context).c_str());
 
       if (utils::IsModelStreamXML(ep_ctx_file)) {
         private_fields_.type = EpContextType::OV_IR;
@@ -145,12 +145,12 @@ struct EpContextNode : ApiPtrs {
     std::array<OrtOpAttr*, 6> attributes = {};
     DeferOrtRelease<OrtOpAttr> defer_release_attrs(attributes.data(), attributes.size(), ort_api.ReleaseOpAttr);
 
-    RETURN_IF_ERROR(ort_api.CreateOpAttr("ep_cache_context", ep_cache_context.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[0]));
-    RETURN_IF_ERROR(ort_api.CreateOpAttr("main_context", &main_context, 1, ORT_OP_ATTR_INT, &attributes[1]));
-    RETURN_IF_ERROR(ort_api.CreateOpAttr("embed_mode", &embed_mode, 1, ORT_OP_ATTR_INT, &attributes[2]));
-    RETURN_IF_ERROR(ort_api.CreateOpAttr("ep_sdk_version", ep_sdk_version.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[3]));
-    RETURN_IF_ERROR(ort_api.CreateOpAttr("partition_name", partition_name.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[4]));
-    RETURN_IF_ERROR(ort_api.CreateOpAttr("source", source.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[5]));
+    OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("ep_cache_context", ep_cache_context.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[0]));
+    OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("main_context", &main_context, 1, ORT_OP_ATTR_INT, &attributes[1]));
+    OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("embed_mode", &embed_mode, 1, ORT_OP_ATTR_INT, &attributes[2]));
+    OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("ep_sdk_version", ep_sdk_version.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[3]));
+    OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("partition_name", partition_name.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[4]));
+    OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("source", source.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[5]));
 
     // Prepare input and output names
     std::vector<const char*> input_names;

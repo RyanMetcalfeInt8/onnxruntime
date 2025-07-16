@@ -22,7 +22,7 @@ template <typename T>
 static OrtStatus* GetSessionConfigEntryOrDefault(const OrtApi& ort_api, const OrtSessionOptions& session_options,
                                                  const char* config_key, T default_val, T& config_val) {
   int has_config = 0;
-  RETURN_IF_ERROR(ort_api.HasSessionConfigEntry(&session_options, config_key, &has_config));
+  OVEP_RETURN_IF_ERROR(ort_api.HasSessionConfigEntry(&session_options, config_key, &has_config));
 
   if (has_config != 1) {
     config_val = default_val;
@@ -30,10 +30,10 @@ static OrtStatus* GetSessionConfigEntryOrDefault(const OrtApi& ort_api, const Or
   }
 
   size_t size = 0;
-  RETURN_IF_ERROR(ort_api.GetSessionConfigEntry(&session_options, config_key, nullptr, &size));
+  OVEP_RETURN_IF_ERROR(ort_api.GetSessionConfigEntry(&session_options, config_key, nullptr, &size));
 
   std::string string_config_val(size, '\0');
-  RETURN_IF_ERROR(ort_api.GetSessionConfigEntry(&session_options, config_key, string_config_val.data(), &size));
+  OVEP_RETURN_IF_ERROR(ort_api.GetSessionConfigEntry(&session_options, config_key, string_config_val.data(), &size));
   string_config_val.resize(size - 1);
 
   try {
@@ -56,10 +56,10 @@ static OrtStatus* GetSessionConfigEntryOrDefault(const OrtApi& ort_api, const Or
 }
 
 OrtStatus* OpenVINOEpPluginOptions::Init(const OrtApi& ort_api, const OrtSessionOptions& session_options) {
-  RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionEpContextEnable, false, ep_ctx_.enable_));
-  RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionEpContextEmbedMode, false, ep_ctx_.embed_));
-  RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionShareEpContexts, false, ep_ctx_.share_));
-  RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionEpContextFilePath, std::filesystem::path(), ep_ctx_.path_));
+  OVEP_RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionEpContextEnable, false, ep_ctx_.enable_));
+  OVEP_RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionEpContextEmbedMode, false, ep_ctx_.embed_));
+  OVEP_RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionShareEpContexts, false, ep_ctx_.share_));
+  OVEP_RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionEpContextFilePath, std::filesystem::path(), ep_ctx_.path_));
 
   return nullptr;
 }
@@ -72,7 +72,7 @@ OpenVINOEpPlugin::OpenVINOEpPlugin(ApiPtrs apis, const std::string& name,
                                    std::shared_ptr<ov::Core> ov_core)
     : ApiPtrs(apis),
       name_(name),
-      logger_(logger),
+      logger_(&logger),
       ov_device_type_(ov_device_type),
       ov_core_(ov_core),
       options_(options) {
@@ -93,11 +93,11 @@ struct NodeView {
 
   OrtStatus* Init(const OrtApi& ort_api, const OrtNode* node_ptr) {
     const char* op_type_char = nullptr;
-    RETURN_IF_ERROR(ort_api.Node_GetOperatorType(node_ptr, &op_type_char));
+    OVEP_RETURN_IF_ERROR(ort_api.Node_GetOperatorType(node_ptr, &op_type_char));
     op_type = op_type_char;
 
     const char* domain_char = nullptr;
-    RETURN_IF_ERROR(ort_api.Node_GetDomain(node_ptr, &domain_char));
+    OVEP_RETURN_IF_ERROR(ort_api.Node_GetDomain(node_ptr, &domain_char));
 
     // Use empty string if domain is null (default domain)
     domain = domain_char ? domain_char : "";
@@ -110,10 +110,10 @@ struct NodeView {
 
 OrtStatus* OpenVINOEpPlugin::GetCapability(const OrtGraph* graph, OrtEpGraphSupportInfo* graph_support_info) {
   size_t num_nodes = 0;
-  RETURN_IF_ERROR(ort_api.Graph_GetNumNodes(graph, &num_nodes));
+  OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNumNodes(graph, &num_nodes));
 
   std::vector<const OrtNode*> nodes(num_nodes);
-  RETURN_IF_ERROR(ort_api.Graph_GetNodes(graph, nodes.data(), nodes.size()));
+  OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNodes(graph, nodes.data(), nodes.size()));
 
   auto add_nodes_to_fuse = [this, graph_support_info](std::vector<const OrtNode*> nodes) -> OrtStatus* {
     OrtNodeFusionOptions options{};
@@ -129,7 +129,7 @@ OrtStatus* OpenVINOEpPlugin::GetCapability(const OrtGraph* graph, OrtEpGraphSupp
   std::vector<const OrtNode*> supported_nodes;
   for (const auto& node_ptr : nodes) {
     NodeView node_info;
-    RETURN_IF_ERROR(node_info.Init(ort_api, node_ptr));
+    OVEP_RETURN_IF_ERROR(node_info.Init(ort_api, node_ptr));
 
     // Check if this operation is supported
     const bool is_ep_context_node = node_info.is_ep_context;
@@ -138,18 +138,18 @@ OrtStatus* OpenVINOEpPlugin::GetCapability(const OrtGraph* graph, OrtEpGraphSupp
     } else {
       // Fuse all the supported nodes collected so far
       if (!supported_nodes.empty()) {
-        RETURN_IF_ERROR(add_nodes_to_fuse(supported_nodes));
+        OVEP_RETURN_IF_ERROR(add_nodes_to_fuse(supported_nodes));
       }
       supported_nodes.clear();
 
       if (is_ep_context_node) {
-        RETURN_IF_ERROR(add_nodes_to_fuse(std::vector<const OrtNode*>{node_ptr}));
+        OVEP_RETURN_IF_ERROR(add_nodes_to_fuse(std::vector<const OrtNode*>{node_ptr}));
       }
     }
   }
 
   if (!supported_nodes.empty()) {
-    RETURN_IF_ERROR(add_nodes_to_fuse(supported_nodes));
+    OVEP_RETURN_IF_ERROR(add_nodes_to_fuse(supported_nodes));
   }
 
   return nullptr;
@@ -166,15 +166,15 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
     }
 
     size_t num_nodes = 0;
-    RETURN_IF_ERROR(ort_api.Graph_GetNumNodes(graph, &num_nodes));
+    OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNumNodes(graph, &num_nodes));
 
     std::vector<const OrtNode*> nodes(num_nodes);
-    RETURN_IF_ERROR(ort_api.Graph_GetNodes(graph, nodes.data(), nodes.size()));
+    OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNodes(graph, nodes.data(), nodes.size()));
 
     auto ov_compute = std::make_unique<OvComputeInfo>(*this, *ov_core_);
 
     OnnxIOMapping io_mapping;
-    RETURN_IF_ERROR(io_mapping.Init(ort_api, *graph));
+    OVEP_RETURN_IF_ERROR(io_mapping.Init(ort_api, *graph));
 
     auto try_export_ep_context = [&](OvComputeInfo& ov_compute, OnnxIOMapping io_mapping) -> OrtStatus* {
       if (!options_.ep_ctx_.enable_) {
@@ -182,7 +182,7 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       }
 
       const char* fused_node_name = nullptr;
-      RETURN_IF_ERROR(ort_api.Node_GetName(fused_node, &fused_node_name));
+      OVEP_RETURN_IF_ERROR(ort_api.Node_GetName(fused_node, &fused_node_name));
 
       EpContextNode node(*this);
       node.embed_mode = options_.ep_ctx_.embed_ ? 1u : 0u;
@@ -198,8 +198,8 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       // TODO(ericcraw) Figure out what to put here.
       // node.ep_sdk_version =
 
-      RETURN_IF_ERROR(ov_compute.Export(node));
-      RETURN_IF_ERROR(node.CreateNode(io_mapping, ep_context_nodes[i]));
+      OVEP_RETURN_IF_ERROR(ov_compute.Export(node));
+      OVEP_RETURN_IF_ERROR(node.CreateNode(io_mapping, ep_context_nodes[i]));
       return nullptr;
     };
 
@@ -207,21 +207,21 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       // Only supporting single ep context node per graph for now
       NodeView node_info;
       const OrtNode* node = nodes[0];
-      RETURN_IF_ERROR(node_info.Init(ort_api, node));
+      OVEP_RETURN_IF_ERROR(node_info.Init(ort_api, node));
       if (node_info.is_ep_context) {
         EpContextNode ep_context_node(*this);
-        RETURN_IF_ERROR(ep_context_node.Init(node));
-        RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(ep_context_node)));
-        RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
+        OVEP_RETURN_IF_ERROR(ep_context_node.Init(node));
+        OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(ep_context_node)));
+        OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
         node_compute_infos[i] = ov_compute.release();
         continue;
       }
     }
 
     std::unique_ptr<onnx::GraphProto> graph_proto = std::make_unique<onnx::GraphProto>();
-    RETURN_IF_ERROR(OrtEpUtils::OrtGraphToProto(*graph, *graph_proto));
-    RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(graph_proto)));
-    RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
+    OVEP_RETURN_IF_ERROR(OrtEpUtils::OrtGraphToProto(*graph, *graph_proto));
+    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(graph_proto)));
+    OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
 
     node_compute_infos[i] = ov_compute.release();
   }
@@ -233,6 +233,6 @@ void OpenVINOEpPlugin::ReleaseNodeComputeInfos(OrtNodeComputeInfo** node_compute
                                                size_t num_node_compute_infos) {
   // Clean up any compute info objects
   for (size_t i = 0; i < num_node_compute_infos; i++) {
-    delete node_compute_infos[i];
+    delete static_cast<OvComputeInfo*>(node_compute_infos[i]);
   }
 }

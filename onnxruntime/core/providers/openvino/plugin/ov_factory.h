@@ -100,7 +100,7 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
                                                          size_t max_ep_devices,
                                                          size_t* p_num_ep_devices) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
-    return factory->GetSupportedDevices(devices, num_devices, ep_devices, max_ep_devices, p_num_ep_devices);
+    return ApiEntry([&]() { return factory->GetSupportedDevices(devices, num_devices, ep_devices, max_ep_devices, p_num_ep_devices); });
   }
   static OrtStatus* ORT_API_CALL CreateEpImpl(OrtEpFactory* this_ptr,
                                               _In_reads_(num_devices) const OrtHardwareDevice* const* devices,
@@ -110,29 +110,29 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
                                               _In_ const OrtLogger* logger,
                                               _Out_ OrtEp** ep) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
-    return factory->CreateEp(devices, ep_metadata, num_devices, session_options, logger, ep);
+    return ApiEntry([&]() { return factory->CreateEp(devices, ep_metadata, num_devices, session_options, logger, ep); });
   }
   static void ORT_API_CALL ReleaseEpImpl(OrtEpFactory* this_ptr, OrtEp* ep) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
-    factory->ReleaseEp(ep);
+    ApiEntry([&]() { factory->ReleaseEp(ep); });
   }
   static OrtStatusPtr ORT_API_CALL CreateAllocatorImpl(OrtEpFactory* this_ptr,
                                                        const OrtMemoryInfo* memory_info,
                                                        const OrtKeyValuePairs* allocator_options,
                                                        OrtAllocator** allocator) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
-    return factory->CreateAllocator(memory_info, allocator_options, allocator);
+    return ApiEntry([&]() { return factory->CreateAllocator(memory_info, allocator_options, allocator); });
   }
 
   static void ORT_API_CALL ReleaseAllocatorImpl(OrtEpFactory* this_ptr, OrtAllocator* allocator) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
-    factory->ReleaseAllocator(allocator);
+    ApiEntry([&]() { factory->ReleaseAllocator(allocator); });
   }
 
   static OrtStatusPtr ORT_API_CALL CreateDataTransferImpl(OrtEpFactory* this_ptr,
                                                           OrtDataTransferImpl** data_transfer) noexcept {
     auto* factory = static_cast<OpenVINOEpPluginFactory*>(this_ptr);
-    return factory->CreateDataTransfer(data_transfer);
+    return ApiEntry([&]() { return factory->CreateDataTransfer(data_transfer); });
   }
 
   static const char* ORT_API_CALL GetVersionImpl(const OrtEpFactory*) noexcept {
