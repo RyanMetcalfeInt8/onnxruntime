@@ -145,7 +145,7 @@ struct EpContextNode : ApiPtrs {
     std::array<OrtOpAttr*, 6> attributes = {};
     DeferOrtRelease<OrtOpAttr> defer_release_attrs(attributes.data(), attributes.size(), ort_api.ReleaseOpAttr);
 
-    OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("ep_cache_context", ep_cache_context.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[0]));
+    OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("ep_cache_context", ep_cache_context.c_str(), ep_cache_context.size(), ORT_OP_ATTR_STRING, &attributes[0]));
     OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("main_context", &main_context, 1, ORT_OP_ATTR_INT, &attributes[1]));
     OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("embed_mode", &embed_mode, 1, ORT_OP_ATTR_INT, &attributes[2]));
     OVEP_RETURN_IF_ERROR(ort_api.CreateOpAttr("ep_sdk_version", ep_sdk_version.c_str(), 1, ORT_OP_ATTR_STRING, &attributes[3]));
