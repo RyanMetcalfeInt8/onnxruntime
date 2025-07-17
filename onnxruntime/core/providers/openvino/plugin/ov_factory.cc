@@ -39,6 +39,7 @@ OpenVINOEpPluginFactory::OpenVINOEpPluginFactory(ApiPtrs apis, const std::string
   OrtEpFactory::ReleaseAllocator = ReleaseAllocatorImpl;
   OrtEpFactory::CreateDataTransfer = CreateDataTransferImpl;
   OrtEpFactory::GetVersion = GetVersionImpl;
+  OrtEpFactory::GetVendorId = GetVendorIdImpl;
   ort_version_supported = ORT_API_VERSION;  // Set to the ORT version we were compiled with.
 }
 
