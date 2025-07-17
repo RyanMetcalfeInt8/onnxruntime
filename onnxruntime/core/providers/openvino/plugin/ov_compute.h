@@ -38,7 +38,9 @@ class WrappedInferRequest {
   // Set tensor call infer req tensor if ort_ptr differs from last set ptr.
   void SetTensor(const std::string& name, const ov::element::Type& type, const ov::Shape& shape, void* ort_ptr) {
     auto& cached_binding = bindings_cache_[name];
-    if (cached_binding.ort_ptr != ort_ptr) {
+    if (cached_binding.ort_ptr != ort_ptr ||
+        !cached_binding.tensor_ptr ||
+        cached_binding.tensor_ptr->get_shape() != shape) {
       cached_binding.tensor_ptr.reset();
       auto ov_tensor = std::make_unique<ov::Tensor>(type, shape, ort_ptr);
       ov_inf_req_.set_tensor(name, *ov_tensor);
