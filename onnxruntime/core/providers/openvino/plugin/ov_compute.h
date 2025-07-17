@@ -265,6 +265,11 @@ struct OnnxToOvNetworkBindings {
         auto type = ov_parameters[ov_param_index].get_element_type();
         ParameterInfo info{onnx_name, ov_param_index, onnx_param_index, type, ParameterShape{shape}};
 
+        // Analyze shape dynamism and set flags
+        if (!shape.is_static()) {
+          has_dynamic_io_ = true;
+        }
+
         input_output_map.push_back(std::move(info));
       }
     };
