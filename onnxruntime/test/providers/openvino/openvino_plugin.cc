@@ -17,7 +17,7 @@ struct OrtEpLibraryOv : public ::testing::Test {
 #else
       "libonnxruntime_providers_openvino.so";
 #endif
-  static const inline std::string registration_name = "openvino_ep";
+  static const inline std::string registration_name = "OpenVINOExecutionProvider";
 
   void SetUp() override {
 #ifndef _WIN32

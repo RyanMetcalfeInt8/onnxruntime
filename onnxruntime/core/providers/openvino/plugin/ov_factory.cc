@@ -25,9 +25,9 @@ static void InitCxxApi(const OrtApiBase& ort_api_base) {
   });
 }
 
-OpenVINOEpPluginFactory::OpenVINOEpPluginFactory(const std::string& ep_name, ApiPtrs apis, const std::string& ov_metadevice_name, std::shared_ptr<ov::Core> core)
+OpenVINOEpPluginFactory::OpenVINOEpPluginFactory(ApiPtrs apis, const std::string& ov_metadevice_name, std::shared_ptr<ov::Core> core)
     : ApiPtrs{apis},
-      ep_name_(ov_metadevice_name.empty() ? ep_name : ep_name + "." + ov_metadevice_name),
+      ep_name_(ov_metadevice_name.empty() ? provider_name_ : std::string(provider_name_) + "." + ov_metadevice_name),
       device_type_(ov_metadevice_name),
       ov_core_(std::move(core)) {
   OrtEpFactory::GetName = GetNameImpl;
@@ -216,7 +216,7 @@ extern "C" {
 //
 // Public symbols
 //
-OrtStatus* CreateEpFactories(const char* registration_name, const OrtApiBase* ort_api_base,
+OrtStatus* CreateEpFactories(const char* /*registration_name*/, const OrtApiBase* ort_api_base,
                              OrtEpFactory** factories, size_t max_factories, size_t* num_factories) {
   InitCxxApi(*ort_api_base);
   const ApiPtrs api_ptrs{Ort::GetApi(), Ort::GetEpApi(), Ort::GetModelEditorApi()};
@@ -235,7 +235,7 @@ OrtStatus* CreateEpFactories(const char* registration_name, const OrtApiBase* or
   size_t factory_index = 0;
   for (const auto& device_name : supported_factories) {
     // Create a factory for this specific device
-    factories[factory_index++] = new OpenVINOEpPluginFactory(registration_name, api_ptrs, device_name, ov_core);
+    factories[factory_index++] = new OpenVINOEpPluginFactory(api_ptrs, device_name, ov_core);
   }
 
   *num_factories = factory_index;

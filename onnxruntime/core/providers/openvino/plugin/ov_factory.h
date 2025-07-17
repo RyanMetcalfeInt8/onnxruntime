@@ -16,7 +16,7 @@ namespace openvino_ep {
 
 class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
  public:
-  OpenVINOEpPluginFactory(const std::string& ep_name, ApiPtrs apis, const std::string& ov_device, std::shared_ptr<ov::Core> ov_core);
+  OpenVINOEpPluginFactory(ApiPtrs apis, const std::string& ov_device, std::shared_ptr<ov::Core> ov_core);
   ~OpenVINOEpPluginFactory() = default;
 
   OVEP_DISABLE_COPY_AND_MOVE(OpenVINOEpPluginFactory)
@@ -72,6 +72,7 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
   static constexpr const char* vendor_ = "Intel";
   static constexpr uint32_t vendor_id_{0x8086};  // Intel's PCI vendor ID
   static constexpr const char* ov_device_key_ = "ov_device";
+  static constexpr const char* provider_name_ = "OpenVINOExecutionProvider";
 
  private:
   std::string ep_name_;
