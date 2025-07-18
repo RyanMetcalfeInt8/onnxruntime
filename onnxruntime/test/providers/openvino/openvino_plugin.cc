@@ -89,7 +89,8 @@ struct OrtEpLibraryOv : public ::testing::Test {
     auto ep_devices = ort_env->GetEpDevices();
     Ort::ConstEpDevice plugin_ep_device{};
     for (Ort::ConstEpDevice& device : ep_devices) {
-      if (std::string_view(device.EpName()).find(registration_name) != std::string::npos) {
+      if (device.Device().Type() == OrtHardwareDeviceType_CPU &&
+          std::string_view(device.EpName()).find(registration_name) != std::string::npos) {
         plugin_ep_device = device;
         break;
       }
@@ -221,4 +222,35 @@ TEST_F(OrtEpLibraryOv, PluginEp_AppendV2_cpu_epctx_plugin_roundtrip_variants_abs
     Ort::Session session(*ort_env, absolute_path.c_str(), session_options);
     RunModelWithSession(session);
   }
+}
+
+TEST_F(OrtEpLibraryOv, PluginEp_AppendV2_multiple_devices) {
+  auto plugin_ep_device = GetOvCpuEpDevice();
+  ASSERT_NE(plugin_ep_device, nullptr);
+
+  std::vector<Ort::ConstEpDevice> multi_device_list(2, plugin_ep_device);  // 2 copies of cpu device.
+
+  Ort::SessionOptions session_options;
+  session_options.AppendExecutionProvider_V2(*ort_env, multi_device_list, std::unordered_map<std::string, std::string>{});
+  Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+}
+
+TEST_F(OrtEpLibraryOv, PluginEp_AppendV2_mixed_factory_devices_throw_exception) {
+  auto ep_devices = ort_env->GetEpDevices();
+  std::vector<Ort::ConstEpDevice> matching_devices;
+
+  for (const auto& device : ep_devices) {
+    std::string ep_name = device.EpName();
+    if (ep_name.find(registration_name) != std::string::npos &&
+        (ep_name == registration_name || ep_name == registration_name + ".AUTO")) {
+      matching_devices.push_back(device);
+    }
+  }
+
+  ASSERT_GT(matching_devices.size(), 1) << "Expected more than one matching EP device";
+
+  EXPECT_THROW({
+        Ort::SessionOptions session_options;
+        session_options.AppendExecutionProvider_V2(*ort_env, matching_devices, std::unordered_map<std::string, std::string>{});
+        Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options); }, Ort::Exception);
 }
