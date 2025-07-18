@@ -433,6 +433,40 @@ struct OpenVINO_Provider : Provider {
     return std::make_shared<OpenVINOProviderFactory>(pi, SharedContext::Get());
   }
 
+  Status CreateIExecutionProvider(const OrtHardwareDevice* const* /*devices*/,
+                                  const OrtKeyValuePairs* const* ep_metadata,
+                                  size_t num_devices,
+                                  ProviderOptions& provider_options,
+                                  const OrtSessionOptions& session_options,
+                                  const OrtLogger& logger,
+                                  std::unique_ptr<IExecutionProvider>& ep) override {
+    if (num_devices != 1) {
+      return Status(common::ONNXRUNTIME, ORT_EP_FAIL, "OpenVINO EP only supports one device.");
+    }
+
+    ProviderInfo pi;
+    const auto& config_options = session_options.GetConfigOptions();
+    ParseProviderInfo(provider_options, &config_options, pi);
+
+    const auto& device_meta_data = ep_metadata[0];
+    auto it = device_meta_data->Entries().find("ov_device");
+    if (it == device_meta_data->Entries().end()) {
+      return Status(common::ONNXRUNTIME, ORT_INVALID_ARGUMENT, "OpenVINO EP device metadata not found.");
+    }
+    pi.device_type = it->second;
+
+    /*
+    TODO: This is where we need to perform some checking / manupulation of the session_options before
+    they are passed into CreateProviders() below.
+    Note: pi.device_type is getting set above, but I *think* it will just get overridden by the
+          ParseConfigOptions() that will be done inside of CreateProvider();
+    */
+
+    auto factory = std::make_unique<OpenVINOProviderFactory>(pi, SharedContext::Get());
+    ep = factory->CreateProvider(session_options, logger);
+    return Status::OK();
+  }
+
   void Initialize() override {
   }
 
