@@ -187,11 +187,15 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       EpContextNode node(*this);
       node.embed_mode = options_.ep_ctx_.embed_ ? 1u : 0u;
       node.partition_name = fused_node_name;
+      node.ep_cache_context = std::string(fused_node_name) + ".blob";
 
-      auto containing_dir = options_.ep_ctx_.path_.parent_path();
-      auto context_filename = std::string(fused_node_name) + ".blob";
-
-      node.ep_cache_context = (containing_dir / context_filename).string();
+      std::filesystem::path containing_dir{options_.ep_ctx_.path_.parent_path()};
+      if (containing_dir.empty()) {
+        const ORTCHAR_T* model_path = nullptr;
+        OVEP_RETURN_IF_ERROR(ort_api.Graph_GetModelPath(graph, &model_path));
+        containing_dir = model_path;
+      }
+      node.private_fields_.model_dir = containing_dir;
 
       node.private_fields_.node_name = fused_node_name;
       node.main_context = 1;  // We always return a single fused node.
@@ -210,7 +214,11 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       OVEP_RETURN_IF_ERROR(node_info.Init(ort_api, node));
       if (node_info.is_ep_context) {
         EpContextNode ep_context_node(*this);
-        OVEP_RETURN_IF_ERROR(ep_context_node.Init(node));
+
+        const ORTCHAR_T* model_path = nullptr;
+        OVEP_RETURN_IF_ERROR(ort_api.Graph_GetModelPath(graph, &model_path));
+        OVEP_RETURN_IF_ERROR(ep_context_node.Init(node, model_path));
+
         OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(ep_context_node)));
         OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
         node_compute_infos[i] = ov_compute.release();

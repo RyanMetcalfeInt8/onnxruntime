@@ -12,6 +12,8 @@
 #include "onnxruntime_cxx_api.h"
 #undef ORT_API_MANUAL_INIT
 
+#define OVEP_ERROR_STR(...) onnxruntime::openvino_ep::BuildErrorMessage(__FILE__, __LINE__, __VA_ARGS__)
+
 #define OVEP_RETURN_IF_ERROR(fn) \
   do {                           \
     OrtStatus* _status = (fn);   \
@@ -20,11 +22,11 @@
     }                            \
   } while (0)
 
-#define OVEP_RETURN_IF(cond, ort_api, msg)               \
-  do {                                                   \
-    if ((cond)) {                                        \
-      return (ort_api).CreateStatus(ORT_EP_FAIL, (msg)); \
-    }                                                    \
+#define OVEP_RETURN_IF(cond, ort_api, msg)                                     \
+  do {                                                                         \
+    if ((cond)) {                                                              \
+      return (ort_api).CreateStatus(ORT_EP_FAIL, OVEP_ERROR_STR(msg).c_str()); \
+    }                                                                          \
   } while (0)
 
 #define OVEP_DISABLE_MOVE(class_name) \
@@ -42,7 +44,7 @@
 #define OVEP_ENFORCE(condition, ...)                                                                          \
   do {                                                                                                        \
     if (!(condition)) {                                                                                       \
-      throw std::runtime_error(onnxruntime::openvino_ep::BuildErrorMessage(__FILE__, __LINE__, __VA_ARGS__)); \
+      throw std::runtime_error(OVEP_ERROR_STR(__VA_ARGS__));                                                  \
     }                                                                                                         \
   } while (0)
 

@@ -58,11 +58,12 @@ struct EpContextNode : ApiPtrs {
   struct private_fields {
     EpContextType type{EpContextType::Native};
     std::string node_name{"OpenVINO_EP_Node"};
+    std::filesystem::path model_dir{};
   } private_fields_;
 
   EpContextNode(ApiPtrs apis) : ApiPtrs(apis) {}
 
-  OrtStatus* Init(const OrtNode* node) {
+  OrtStatus* Init(const OrtNode* node, const std::filesystem::path& model_path) {
     // Helper lambda to extract attribute values
     auto get_attr_int64 = [&](const char* name, int64_t default_val) -> int64_t {
       int64_t val = default_val;
@@ -124,14 +125,16 @@ struct EpContextNode : ApiPtrs {
     max_size = get_attr_int64("max_size", 0);
 
     private_fields_ = private_fields{};
+    private_fields_.model_dir = model_path.parent_path();
 
     if (embed_mode == 1) {
       if (utils::IsXmlHeader(ep_cache_context)) {
         private_fields_.type = EpContextType::OV_IR;
       }
     } else {
-      std::ifstream ep_ctx_file(ep_cache_context, std::ios::binary);
-      OVEP_RETURN_IF(ep_ctx_file.fail(), ort_api, std::format("Could not open EP context file {}", ep_cache_context).c_str());
+      auto ep_ctx_path = private_fields_.model_dir / ep_cache_context;
+      std::ifstream ep_ctx_file(ep_ctx_path, std::ios::binary);
+      OVEP_RETURN_IF(ep_ctx_file.fail(), ort_api, std::format("Could not open EP context file {}", ep_ctx_path.string()).c_str());
 
       if (utils::IsModelStreamXML(ep_ctx_file)) {
         private_fields_.type = EpContextType::OV_IR;
