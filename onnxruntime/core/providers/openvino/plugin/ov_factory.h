@@ -139,6 +139,10 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
   static const char* ORT_API_CALL GetVersionImpl(const OrtEpFactory*) noexcept {
     return OVEP_PLUGIN_VERSION;
   }
+
+  static uint32_t GetVendorIdImpl(const OrtEpFactory*) noexcept {
+    return OpenVINOEpPluginFactory::vendor_id_;
+  }
 };
 
 }  // namespace openvino_ep
