@@ -8,6 +8,7 @@
 #include <vector>
 #include <ranges>
 #include <format>
+#include <unordered_set>
 
 #include "onnxruntime_c_api.h"
 #include "ov_factory.h"
@@ -149,18 +150,34 @@ OrtStatus* OpenVINOEpPluginFactory::CreateEp(const OrtHardwareDevice* const* dev
   (void)devices;
   *ep = nullptr;
 
-  // Create the execution provider with appropriate logging
-  std::string log_message = "Creating OpenVINO EP for devices " + device_type_;
-  OrtStatus* status = ort_api.Logger_LogMessage(logger,
-                                                OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO,
-                                                log_message.c_str(), ORT_FILE, __LINE__, __FUNCTION__);
-  if (status != nullptr) {
-    return status;
+  Ort::Logger ort_logger{logger};
+
+  // Check if no devices are provided
+  if (num_devices == 0) {
+    return ort_api.CreateStatus(ORT_INVALID_ARGUMENT, "No devices provided to CreateEp");
+  }
+
+  std::unordered_set<std::string_view> unique_ov_devices;
+  std::vector<std::string_view> ordered_unique_ov_devices;
+  for (size_t i = 0; i < num_devices; ++i) {
+    const char* ov_device_char = ort_api.GetKeyValue(ep_metadata[i], ov_device_key_);
+    std::string_view ov_device = ov_device_char ? ov_device_char : std::string_view{};
+    if (ov_device.empty()) {
+      return ort_api.CreateStatus(ORT_INVALID_ARGUMENT,
+                                  std::format("Ep device missing expected metadata key {}", ov_device_key_).c_str());
+    }
+
+    // Add to ordered_unique only if not already present
+    if (unique_ov_devices.insert(ov_device).second) {
+      ordered_unique_ov_devices.push_back(ov_device);
+    }
   }
 
   bool is_meta_device_factory = IsMetaDeviceFactory();
-  if (!is_meta_device_factory && num_devices != 1) {
-    return ort_api.CreateStatus(ORT_INVALID_ARGUMENT, "Non meta device OpenVINOEP's must only specify a single device. E.g. GPU, GPU.1, CPU, NPU");
+  if (ordered_unique_ov_devices.size() > 1 && !is_meta_device_factory) {
+    std::string warning_msg = std::format("OpenVINO EP factory '{}' is not a meta device but {} OpenVINO devices were specified. Using first ov_device only: {}", ep_name_, unique_ov_devices.size(), ordered_unique_ov_devices.at(0));
+    ORT_CXX_LOG(ort_logger, ORT_LOGGING_LEVEL_WARNING, warning_msg.c_str());
+    ordered_unique_ov_devices.resize(1);  // Use only the first device if not a meta device factory
   }
 
   std::string ov_device_string;
@@ -170,17 +187,13 @@ OrtStatus* OpenVINOEpPluginFactory::CreateEp(const OrtHardwareDevice* const* dev
     ov_device_string += ":";
   }
 
-  for (size_t i = 0; i < num_devices; i++) {
-    if (i > 0) {
+  bool prepend_comma = false;
+  for (const auto& ov_device : ordered_unique_ov_devices) {
+    if (prepend_comma) {
       ov_device_string += ",";
     }
-
-    const char* value = ort_api.GetKeyValue(ep_metadata[i], ov_device_key_);
-    if (!value) {
-      return ort_api.CreateStatus(ORT_INVALID_ARGUMENT,
-                                  std::format("Ep device missing expected metadata key {}", ov_device_key_).c_str());
-    }
-    ov_device_string += value;
+    ov_device_string += ov_device;
+    prepend_comma = true;
   }
 
   OpenVINOEpPluginOptions options;
