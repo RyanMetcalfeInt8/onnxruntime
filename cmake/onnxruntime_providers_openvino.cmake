@@ -14,8 +14,8 @@ file(GLOB_RECURSE onnxruntime_providers_openvino_cc_srcs CONFIGURE_DEPENDS
 # Header paths
 find_package(OpenVINO REQUIRED COMPONENTS Runtime ONNX)
 
-if(OpenVINO_VERSION VERSION_LESS 2024.5)
-  message(FATAL_ERROR "OpenVINO 2024.5 and newer are supported. Please, use latest OpenVINO release")
+if(OpenVINO_VERSION VERSION_LESS 2025.0)
+  message(FATAL_ERROR "OpenVINO 2025.0 and newer are supported. Please, use latest OpenVINO release")
 endif()
 
 if(OpenVINO_VERSION VERSION_GREATER_EQUAL 2024.4)
