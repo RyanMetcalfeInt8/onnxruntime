@@ -841,6 +841,31 @@ select from 'TF8', 'TF16', 'UINT8', 'FLOAT', 'ITENSOR'. \n)");
     auto device_type = ov_options.find("device_type")->second;
     ov_options.erase("device_type");
 
+    nlohmann::json load_config_json;
+    auto load_config = ov_options.find("load_config");
+    if (load_config != ov_options.end()) {
+      load_config_json = nlohmann::json::parse(load_config->second);
+      ov_options.erase("load_config");
+    }
+
+    // Reroute cache_dir via load_config
+    auto cache_dir = ov_options.find("cache_dir");
+    if (cache_dir != ov_options.end()) {
+      load_config_json[device_type]["CACHE_DIR"] = cache_dir->second;
+      ov_options.erase("cache_dir");
+    }
+
+    // Reroute enable_qdq_optimizer via load_config
+    auto enable_qdq_optimizer = ov_options.find("enable_qdq_optimizer");
+    if (enable_qdq_optimizer != ov_options.end()) {
+      load_config_json[device_type]["NPU_QDQ_OPTIMIZATION"] = enable_qdq_optimizer->second == "True" ? "YES" : "NO";
+      ov_options.erase("enable_qdq_optimizer");
+    }
+
+    if (!load_config_json.empty()) {
+      ov_options["load_config"] = load_config_json.dump();
+    }
+
     auto ep_devices = env.GetEpDevices();
 
     std::unordered_map<std::string, std::vector<Ort::ConstEpDevice> > ep_device_map;
