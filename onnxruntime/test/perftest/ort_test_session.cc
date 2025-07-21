@@ -777,66 +777,174 @@ select from 'TF8', 'TF16', 'UINT8', 'FLOAT', 'ITENSOR'. \n)");
         if (value == "true" || value == "True" ||
             value == "false" || value == "False") {
           ov_options[key] = value;
-        } else {
-          ORT_THROW(
-              "[ERROR] [OpenVINO] The value for the key 'enable_dynamic_shapes' "
-              "should be a boolean i.e. true or false. Default value is false.\n");
         }
-      } else if (key == "num_of_threads") {
-        if (std::stoi(value) <= 0) {
-          ORT_THROW("[ERROR] [OpenVINO] The value for the key 'num_of_threads' should be greater than 0\n");
-        } else {
-          ov_options[key] = value;
+ else {
+     ORT_THROW(
+         "[ERROR] [OpenVINO] The value for the key 'enable_dynamic_shapes' "
+         "should be a boolean i.e. true or false. Default value is false.\n");
         }
-      } else if (key == "load_config") {
-        auto load_json = [&](std::string filename) -> std::string {
-          std::ifstream input_filestream(filename);
-          if (!input_filestream.is_open()) {
-            ORT_THROW("Passed an invalid JSON config file path \"" + filename + "\".");
-          }
-          nlohmann::json json_config;
-          try {
-            input_filestream >> json_config;
-          } catch (const OnnxRuntimeException& ex) {
-            ORT_THROW("Exception parsing config file \"" + filename + "\".\n" + ex.what());
-          } catch (const std::exception& ex) {
-            throw std::runtime_error("Standard exception for config file \"" + filename + "\".\n" + ex.what());
-          } catch (...) {
-            throw std::runtime_error("Unknown exception for config file \"" + filename + "\".\n");
-          }
-          if (json_config.empty()) {
-            ORT_THROW("Empty JSON content passed \"" + filename + "\".");
-          }
-          return json_config.dump();
-        };
-        ov_options[key] = load_json(value);
-      } else if (key == "model_priority") {
-        ov_options[key] = value;
-      } else if (key == "cache_dir") {
-        ov_options[key] = value;
-      } else if (key == "context") {
-        ov_options[key] = value;
-      } else if (key == "num_streams") {
-        if (std::stoi(value) <= 0 && std::stoi(value) > 8) {
-          ORT_THROW("[ERROR] [OpenVINO] The value for the key 'num_streams' should be in the range of 1-8 \n");
-        } else {
-          ov_options[key] = value;
-        }
-      } else if (key == "device_memory_name") {
-        device_memory_name_ = std::move(value);
-      } else if (key == "device_luid") {
-        ov_options[key] = value;
-      } else if (key == "reshape_input") {
-        ov_options[key] = value;
-      } else {
-        ORT_THROW(
-            "[ERROR] [OpenVINO] wrong key type entered. Choose from the following runtime key options that are available for OpenVINO."
-            " ['device_type', 'device_id', 'num_of_threads', 'load_config', 'cache_dir', 'num_streams', "
-            "'enable_opencl_throttling', 'disable_dynamic_shapes', 'enable_qdq_optimizer',"
-            " 'enable_causallm', 'model_priority'] \n");
+      }
+ else if (key == "num_of_threads") {
+     if (std::stoi(value) <= 0) {
+         ORT_THROW("[ERROR] [OpenVINO] The value for the key 'num_of_threads' should be greater than 0\n");
+     }
+     else {
+         ov_options[key] = value;
+     }
+      }
+ else if (key == "load_config") {
+     auto load_json = [&](std::string filename) -> std::string {
+         std::ifstream input_filestream(filename);
+         if (!input_filestream.is_open()) {
+             ORT_THROW("Passed an invalid JSON config file path \"" + filename + "\".");
+         }
+         nlohmann::json json_config;
+         try {
+             input_filestream >> json_config;
+         }
+         catch (const OnnxRuntimeException& ex) {
+             ORT_THROW("Exception parsing config file \"" + filename + "\".\n" + ex.what());
+         }
+         catch (const std::exception& ex) {
+             throw std::runtime_error("Standard exception for config file \"" + filename + "\".\n" + ex.what());
+         }
+         catch (...) {
+             throw std::runtime_error("Unknown exception for config file \"" + filename + "\".\n");
+         }
+         if (json_config.empty()) {
+             ORT_THROW("Empty JSON content passed \"" + filename + "\".");
+         }
+         return json_config.dump();
+         };
+     ov_options[key] = load_json(value);
+      }
+ else if (key == "model_priority") {
+     ov_options[key] = value;
+      }
+ else if (key == "cache_dir") {
+     ov_options[key] = value;
+      }
+ else if (key == "context") {
+     ov_options[key] = value;
+      }
+ else if (key == "num_streams") {
+     if (std::stoi(value) <= 0 && std::stoi(value) > 8) {
+         ORT_THROW("[ERROR] [OpenVINO] The value for the key 'num_streams' should be in the range of 1-8 \n");
+     }
+     else {
+         ov_options[key] = value;
+     }
+      }
+ else if (key == "device_memory_name") {
+     device_memory_name_ = std::move(value);
+      }
+ else if (key == "device_luid") {
+     ov_options[key] = value;
+      }
+ else if (key == "reshape_input") {
+     ov_options[key] = value;
+      }
+ else {
+     ORT_THROW(
+         "[ERROR] [OpenVINO] wrong key type entered. Choose from the following runtime key options that are available for OpenVINO."
+         " ['device_type', 'device_id', 'num_of_threads', 'load_config', 'cache_dir', 'num_streams', "
+         "'enable_opencl_throttling', 'disable_dynamic_shapes', 'enable_qdq_optimizer',"
+         " 'enable_causallm', 'model_priority'] \n");
       }
     }
-    session_options.AppendExecutionProvider_OpenVINO_V2(ov_options);
+
+    // Get ep devices with matching ov_device as device_type
+    auto device_type = ov_options.find("device_type")->second;
+    ov_options.erase("device_type");
+
+    // Given the device type, split it into a meta prefix, and list of devices.
+    // For example, AUTO: NPU,GPU,CPU will get split into:
+    // meta_prefix = "AUTO"
+    // ov_device_types = {"NPU", "GPU", "CPU"}
+    std::optional<std::string> meta_prefix;
+    std::vector<std::string> ov_device_types;
+    {
+        std::string remainder;
+        size_t colon_pos = device_type.find(':');
+        if (colon_pos != std::string::npos) {
+            meta_prefix = device_type.substr(0, colon_pos);
+            remainder = device_type.substr(colon_pos + 1);
+        }
+        else {
+            remainder = device_type;
+        }
+
+        size_t start = 0;
+        while (start < remainder.size()) {
+            size_t end = remainder.find(',', start);
+            if (end == std::string::npos) end = remainder.size();
+            if (end > start) {
+              ov_device_types.emplace_back(remainder.substr(start, end - start));
+            }
+            start = end + 1;
+        }
+    }
+
+    if (meta_prefix)
+        std::cout << "meta_prefix = " << *meta_prefix << std::endl;
+
+    std::cout << "device_types = " << std::endl;
+    for (auto& d : ov_device_types) {
+        std::cout << "  " << d << std::endl;
+    }
+
+    auto ep_devices = env.GetEpDevices();
+
+    // Given an ep_name & device, return the ep device (or nullptr)
+    const auto get_ep_device = [&ep_devices](const std::string ep_name, std::string ov_device) -> Ort::ConstEpDevice {
+      Ort::ConstEpDevice plugin_ep_device{};
+      for (Ort::ConstEpDevice& device : ep_devices)  {
+        if (std::string_view(device.EpName()).find(ep_name) != std::string::npos) {
+          const auto& meta_kv = device.EpMetadata().GetKeyValuePairs();
+          auto device_type_it = meta_kv.find("ov_device");
+          if (device_type_it != meta_kv.end()) {
+            if (device_type_it->second == ov_device) {
+              plugin_ep_device = device;
+              break;
+            }
+          }
+        }
+      }
+      return plugin_ep_device;
+    };
+
+    // Define the ep name using (possible) meta prefix.
+    std::string ep_name = "OpenVINOExecutionProvider";
+    if (meta_prefix)
+    {
+      ep_name += "." + *meta_prefix;
+    }
+
+    // From our ov_device_types, populate a list of ep devices.
+    std::vector<Ort::ConstEpDevice> session_ep_devices;
+
+    //assemble our device list
+    for (auto& ov_device : ov_device_types) {
+      Ort::ConstEpDevice plugin_ep_device{};
+      plugin_ep_device = get_ep_device(ep_name, ov_device);
+      if (!plugin_ep_device) {
+        // device not found. Let's strip any '.X' from the string and try again.
+        // So for example, if "GPU.0" was not found, now we'll search for "GPU"
+        size_t dot_pos = ov_device.find('.');
+        if (dot_pos != std::string::npos) {
+          ov_device.erase(dot_pos);
+        }
+        plugin_ep_device = get_ep_device(ep_name, ov_device);
+        if (!plugin_ep_device) {
+          ORT_THROW("Did not find an EP device with ep_name = " + ep_name + " & ov_device = " + ov_device);
+        }
+      }
+
+      session_ep_devices.push_back(plugin_ep_device);
+    }
+
+    // session_options.AppendExecutionProvider_OpenVINO_V2(ov_options);
+    session_options.AppendExecutionProvider_V2(env, session_ep_devices, ov_options);
 #else
     ORT_THROW("OpenVINO is not supported in this build\n");
 #endif
