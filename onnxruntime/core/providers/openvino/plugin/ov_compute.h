@@ -163,22 +163,6 @@ struct OnnxIOMapping {
   std::vector<std::string> input_names;
   std::vector<std::string> output_names;
 
-  OrtStatus* Init(const OrtApi& ort_api, const OrtNode& node) {
-    std::vector<const OrtValueInfo*> io;
-    size_t num_elements = 0;
-
-    OVEP_RETURN_IF_ERROR(ort_api.Node_GetNumInputs(&node, &num_elements));
-    io.resize(num_elements);
-    OVEP_RETURN_IF_ERROR(ort_api.Node_GetInputs(&node, io.data(), io.size()));
-    OVEP_RETURN_IF_ERROR(PopulateNames(ort_api, io, input_names));
-
-    OVEP_RETURN_IF_ERROR(ort_api.Node_GetNumOutputs(&node, &num_elements));
-    io.resize(num_elements);
-    OVEP_RETURN_IF_ERROR(ort_api.Node_GetOutputs(&node, io.data(), io.size()));
-    OVEP_RETURN_IF_ERROR(PopulateNames(ort_api, io, output_names));
-    return nullptr;
-  }
-
   OrtStatus* Init(const OrtApi& ort_api, const OrtGraph& graph) {
     std::vector<const OrtValueInfo*> io;
     size_t num_elements = 0;
@@ -198,9 +182,16 @@ struct OnnxIOMapping {
  private:
   static OrtStatus* PopulateNames(const OrtApi& ort_api, std::vector<const OrtValueInfo*>& io_nodes, std::vector<std::string>& names_vec) {
     for (const auto& value_info : io_nodes) {
+      bool is_required_graph_input = false;
+      OVEP_RETURN_IF_ERROR(ort_api.ValueInfo_IsRequiredGraphInput(value_info, &is_required_graph_input));
+
+      bool is_graph_output = false;
+      OVEP_RETURN_IF_ERROR(ort_api.ValueInfo_IsGraphOutput(value_info, &is_graph_output));
+
       const char* name = nullptr;
       OVEP_RETURN_IF_ERROR(ort_api.GetValueInfoName(value_info, &name));
-      if (name) {
+
+      if ((is_required_graph_input || is_graph_output) && name) {
         names_vec.emplace_back(name);
       }
     }
@@ -292,7 +283,7 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
                      OrtKernelContext* kernel_context);
   void ReleaseState(void* compute_state);
 
-  OrtStatus* Init(const std::string& ov_device, const OnnxIOMapping &, EpContextNode ep_context_node);
+  OrtStatus* Init(const std::string& ov_device, const OnnxIOMapping&, EpContextNode ep_context_node);
   OrtStatus* Init(const std::string& ov_device, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> ep_context_node);
 
   OrtStatus* Export(EpContextNode&);
