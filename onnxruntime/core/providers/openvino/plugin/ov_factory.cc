@@ -39,6 +39,7 @@ OpenVINOEpPluginFactory::OpenVINOEpPluginFactory(ApiPtrs apis, const std::string
   OrtEpFactory::CreateAllocator = CreateAllocatorImpl;
   OrtEpFactory::ReleaseAllocator = ReleaseAllocatorImpl;
   OrtEpFactory::CreateDataTransfer = CreateDataTransferImpl;
+  OrtEpFactory::IsStreamAware = IsStreamAwareImpl;
   OrtEpFactory::GetVersion = GetVersionImpl;
   OrtEpFactory::GetVendorId = GetVendorIdImpl;
   ort_version_supported = ORT_API_VERSION;  // Set to the ORT version we were compiled with.
@@ -230,8 +231,10 @@ extern "C" {
 //
 // Public symbols
 //
-OrtStatus* CreateEpFactories(const char* /*registration_name*/, const OrtApiBase* ort_api_base,
+OrtStatus* CreateEpFactories(const char* /*registration_name*/, const OrtApiBase* ort_api_base, const OrtLogger* default_logger,
                              OrtEpFactory** factories, size_t max_factories, size_t* num_factories) {
+  (void)default_logger;
+
   InitCxxApi(*ort_api_base);
   const ApiPtrs api_ptrs{Ort::GetApi(), Ort::GetEpApi(), Ort::GetModelEditorApi()};
 

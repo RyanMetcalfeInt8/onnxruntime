@@ -136,6 +136,10 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
     return ApiEntry([&]() { return factory->CreateDataTransfer(data_transfer); });
   }
 
+  static bool ORT_API_CALL IsStreamAwareImpl(const OrtEpFactory*) noexcept {
+    return false;
+  }
+
   static const char* ORT_API_CALL GetVersionImpl(const OrtEpFactory*) noexcept {
     return OVEP_PLUGIN_VERSION;
   }
