@@ -226,9 +226,9 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       }
     }
 
-    std::unique_ptr<onnx::GraphProto> graph_proto = std::make_unique<onnx::GraphProto>();
-    OVEP_RETURN_IF_ERROR(OrtEpUtils::OrtGraphToProto(*graph, *graph_proto));
-    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(graph_proto)));
+    std::unique_ptr<onnx::ModelProto> model_proto = std::make_unique<onnx::ModelProto>();
+    OVEP_RETURN_IF_ERROR(OrtEpUtils::OrtGraphToProto(*graph, *model_proto));
+    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(model_proto)));
     OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
 
     node_compute_infos[i] = ov_compute.release();

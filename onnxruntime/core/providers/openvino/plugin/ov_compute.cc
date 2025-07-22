@@ -55,14 +55,8 @@ OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const OnnxIOMapping
   return nullptr;
 }
 
-OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::GraphProto> graph_proto) {
+OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::ModelProto> model_proto) {
   ov::AnyMap configs = {}; /* no configs yet*/
-
-  auto model_proto = std::make_unique<onnx::ModelProto>();
-  model_proto->set_allocated_graph(graph_proto.release());
-  model_proto->set_ir_version(onnx::IR_VERSION);
-  model_proto->set_producer_name("onnxruntime_ov_provider_plugin");
-  model_proto->set_producer_version(OVEP_PLUGIN_VERSION);
 
   std::string model = model_proto->SerializeAsString();
   model_proto.reset();

@@ -293,7 +293,7 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
   void ReleaseState(void* compute_state);
 
   OrtStatus* Init(const std::string& ov_device, const OnnxIOMapping &, EpContextNode ep_context_node);
-  OrtStatus* Init(const std::string& ov_device, const OnnxIOMapping&, std::unique_ptr<onnx::GraphProto> ep_context_node);
+  OrtStatus* Init(const std::string& ov_device, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> ep_context_node);
 
   OrtStatus* Export(EpContextNode&);
 
