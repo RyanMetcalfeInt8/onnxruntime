@@ -59,7 +59,30 @@ OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const OnnxI
 }
 
 OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::GraphProto> graph_proto) {
-  return Ort::Status("Stateful support for non-EPCtx models not supported yet", ORT_INVALID_ARGUMENT).release();
+  _ov_device = ov_device;
+  ov::AnyMap configs = {}; /* no configs yet*/
+
+  auto model_proto = std::make_unique<onnx::ModelProto>();
+  model_proto->set_allocated_graph(graph_proto.release());
+  model_proto->set_ir_version(onnx::IR_VERSION);
+  model_proto->set_producer_name("onnxruntime_ov_provider_plugin");
+  model_proto->set_producer_version(OVEP_PLUGIN_VERSION);
+
+  std::string model = model_proto->SerializeAsString();
+  model_proto.reset();
+
+  auto ov_model = ov_core_.read_model(std::move(model), ov::Tensor{});
+  compiled_model_ = stateful_compile_ir_(ov_model, configs);
+
+  _infer_request = std::make_unique<WrappedInferRequest>(std::move(compiled_model_.create_infer_request()));
+  onnx_to_ov_bindings_ = std::make_unique<OnnxToOvNetworkBindings>(compiled_model_, io_mapping, SessionContext{true});
+
+  bool gpu_or_npu = ((_ov_device.find("NPU") != std::string::npos) || (_ov_device.find("GPU") != std::string::npos));
+  if (gpu_or_npu) {
+    prefill_use_full_chat_history_ = true;
+  }
+
+  return nullptr;
 }
 
 ov::CompiledModel OvComputeInfoStateful::stateful_compile_ir_(std::shared_ptr<ov::Model> model, const ov::AnyMap& device_config) {
@@ -103,8 +126,7 @@ ov::CompiledModel OvComputeInfoStateful::stateful_compile_ir_(std::shared_ptr<ov
     UpdateNPUConfig(config, kv_pos, kv_desc);
   } else {
     // This patches the OV IR model so that it only produces the logits required for sampling.
-    // Actually either way that happens within NPUW::LLMCompiledModel creation for NPU device,
-    // while this is here mostly to align this behavior for other devices viz. (CPU, GPU).
+    // It's not needed for NPU, as it is already internally applied inside NPU compilation.
     ApplySliceBeforeMatmulTransformation(model);
   }
 
@@ -141,24 +163,16 @@ static inline void SetTensorFromCache(ov::InferRequest infer_request, const std:
   infer_request.set_tensor(tensor_name, new_tensor);
 }
 
-static inline std::optional<ov::Tensor> FindTensor(ov::InferRequest infer_request, const std::string& tensor_name) {
+static inline bool HasTensor(ov::InferRequest infer_request, const std::string& tensor_name) {
   // Check if tensor exists by examining input names in the compiled model
   const auto& model = infer_request.get_compiled_model();
-  bool tensor_exists = false;
-
   for (const auto& input : model.inputs()) {
     const auto& names = input.get_names();
     if (names.find(tensor_name) != names.end()) {
-      tensor_exists = true;
-      break;
+      return true;
     }
   }
-
-  if (tensor_exists) {
-    return infer_request.get_tensor(tensor_name);
-  }
-
-  return std::nullopt;
+  return false;
 }
 
 OrtStatus* OvComputeInfoStateful::pre_infer_()
@@ -175,9 +189,7 @@ OrtStatus* OvComputeInfoStateful::pre_infer_()
     CacheTensor(infer_request , "input_ids", cached_input_ids_);
 
     // "position_ids" (GQA with Rotary Embeddings doesnt have position_ids) - check if exists
-    auto position_ids_opt = FindTensor(infer_request , "position_ids");
-    bool has_position_ids = position_ids_opt.has_value();
-
+    auto has_position_ids = HasTensor(infer_request, "position_ids");
     if (has_position_ids) {
       CacheTensor(infer_request , "position_ids", cached_position_ids_);
     }
@@ -193,13 +205,13 @@ OrtStatus* OvComputeInfoStateful::pre_infer_()
         // Set tensors using cached values
         SetTensorFromCache(infer_request , "input_ids", cached_input_ids_);
 
-        // Only set position_ids if it exists and we have cached values
+        // Only override position_ids if it exists and we have cached values
         if (has_position_ids && !cached_position_ids_.empty()) {
           SetTensorFromCache(infer_request , "position_ids", cached_position_ids_);
         }
       }
     }
-  } 
+  }
 
   return nullptr;
 }
