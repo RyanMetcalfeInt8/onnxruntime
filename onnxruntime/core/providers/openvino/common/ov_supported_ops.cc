@@ -143,8 +143,6 @@ static const std::vector<SupportedOp> kAllSupportedOps = {
     {OpenVINOVersion(2024, 4), "Pad", kDefaultDomain},
     {OpenVINOVersion(2024, 4), "Pow", kDefaultDomain},
     {OpenVINOVersion(2024, 4), "PRelu", kDefaultDomain},
-    {OpenVINOVersion(2024, 4), "QLinearConv", kDefaultDomain},
-    {OpenVINOVersion(2024, 4), "QLinearMatMul", kDefaultDomain},
     {OpenVINOVersion(2024, 4), "QuantizeLinear", kDefaultDomain},
     {OpenVINOVersion(2024, 4), "RandomNormal", kDefaultDomain},
     {OpenVINOVersion(2024, 4), "RandomNormalLike", kDefaultDomain},
@@ -203,6 +201,9 @@ static const std::vector<SupportedOp> kAllSupportedOps = {
     {OpenVINOVersion(2024, 4), "Upsample", kDefaultDomain},
     {OpenVINOVersion(2024, 4), "Where", kDefaultDomain},
     {OpenVINOVersion(2024, 4), "Xor", kDefaultDomain},
+    // ONNX frontend claims support but fails to compile models with following ops
+    // {OpenVINOVersion(2024, 4), "QLinearConv", kDefaultDomain},
+    // {OpenVINOVersion(2024, 4), "QLinearMatMul", kDefaultDomain},
 
     // Deprecated ONNX operations (already included above: Affine, Crop, Upsample)
     {OpenVINOVersion(2024, 4), "Scatter", kDefaultDomain},
@@ -236,18 +237,23 @@ static const std::vector<SupportedOp> kAllSupportedOps = {
     {OpenVINOVersion(2024, 4), "MatMulIntegerToFloat", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "MatMulNBits", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "Pad", kMicrosoftDomain},
-    {OpenVINOVersion(2024, 4), "QLinearActivation", kMicrosoftDomain},
-    {OpenVINOVersion(2024, 4), "QLinearAdd", kMicrosoftDomain},
-    {OpenVINOVersion(2024, 4), "QLinearMul", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "QuickGelu", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "Range", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "SimplifiedLayerNormalization", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "SkipLayerNormalization", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "SkipSimplifiedLayerNormalization", kMicrosoftDomain},
+    // ONNX frontend claims support but fails to compile models with following ops
+    // {OpenVINOVersion(2024, 4), "QLinearActivation", kMicrosoftDomain},
+    // {OpenVINOVersion(2024, 4), "QLinearAdd", kMicrosoftDomain},
+    // {OpenVINOVersion(2024, 4), "QLinearMul", kMicrosoftDomain},
 
     // OVEP supported operators
     {OpenVINOVersion(0, 0), "EPContext", kMicrosoftDomain},
 
+    // Following work but ONNX frontend does not claim support
+    {OpenVINOVersion(2024, 4), "DequantizeLinear", kMicrosoftDomain },
+    {OpenVINOVersion(2024, 4), "QuantizeLinear", kMicrosoftDomain},
+    {OpenVINOVersion(2024, 4), "Gelu", kMicrosoftDomain},
 };  // namespace openvino_ep
 
 SupportedOps::SupportedOps(const OpenVINOVersion& ov_version)
