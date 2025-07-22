@@ -103,7 +103,11 @@ TEST_F(OrtEpLibraryOv, LoadUnloadPluginLibrary) {
   auto ep_devices = ort_env->GetEpDevices();
   auto test_ep_device = std::find_if(ep_devices.begin(), ep_devices.end(),
                                      [this](Ort::ConstEpDevice& device) {
-                                       return std::string_view(device.EpName()).find(registration_name) != std::string::npos;
+                                       if (std::string_view(device.EpName()).find(registration_name) != std::string::npos) {
+                                         std::unordered_map<std::string, std::string> ep_metadata_entries = device.EpMetadata().GetKeyValuePairs();
+                                         return (ep_metadata_entries.count("ov_device") > 0) && (ep_metadata_entries.find("ov_device")->second == "CPU");
+                                       }
+                                       return false;
                                      });
   ASSERT_NE(test_ep_device, ep_devices.end()) << "Expected an OrtEpDevice to have been created by the test library.";
   ASSERT_STREQ(test_ep_device->EpVendor(), "Intel");
@@ -112,9 +116,6 @@ TEST_F(OrtEpLibraryOv, LoadUnloadPluginLibrary) {
   ASSERT_GE(device.VendorId(), 0);
   ASSERT_GE(device.DeviceId(), 0);
   ASSERT_NE(device.Vendor(), nullptr);
-  std::unordered_map<std::string, std::string> ep_metadata_entries = test_ep_device->EpMetadata().GetKeyValuePairs();
-  ASSERT_GT(ep_metadata_entries.size(), 0);
-  ASSERT_GT(ep_metadata_entries.count("ov_device"), 0);
 }
 
 TEST_F(OrtEpLibraryOv, MetaDevicesAvailable) {
