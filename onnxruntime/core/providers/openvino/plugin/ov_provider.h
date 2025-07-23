@@ -5,6 +5,8 @@
 
 #include <vector>
 #include <string>
+#include <unordered_set>
+#include <filesystem>
 
 #define ORT_API_MANUAL_INIT
 #include "onnxruntime_cxx_api.h"
@@ -32,9 +34,32 @@ struct EpContextSessionConfig {
   std::filesystem::path path_{};
 };
 
+using ConfigMap = std::map<std::string, ov::AnyMap>;
+using ReshapeMap = std::map<std::string, ov::PartialShape>;
+
+struct OpenVINOEpProviderOptions {
+  ConfigMap load_config{};      // JSON config map to load custom OV parameters.
+  bool enable_causallm{false};  // Enables Causal LM Compilation for ORT GenAI OVEP Pass
+  ReshapeMap reshape_input{};   // Used for reshaping the OV graph inputs shape at runtime.
+
+  static const std::unordered_set<std::string>& GetValidProviderKeys() {
+    static const std::unordered_set<std::string> valid_keys = {
+        "load_config", "enable_causallm", "reshape_input"};
+    return valid_keys;
+  }
+};
+
 struct OpenVINOEpPluginOptions {
+  OpenVINOEpPluginOptions() = default;
+  OpenVINOEpPluginOptions(std::string ep_name) : ep_name_(std::move(ep_name)) {}
   EpContextSessionConfig ep_ctx_;
-  OrtStatus* Init(const OrtApi& ort_api, const OrtSessionOptions& session_options);
+  OpenVINOEpProviderOptions provider_options_;
+  OrtStatus* Init(const OrtApi& ort_api, const Ort::Logger& logger, const OrtSessionOptions& session_options, const std::string& ep_name);
+
+ private:
+  std::string ep_name_;
+  OrtStatus* ParseProviderOptions(const OrtApi& ort_api, const Ort::Logger& logger, const OrtSessionOptions& session_options, const std::string& ep_name);
+  OrtStatus* ParseEpContextOptions(const OrtApi& ort_api, const OrtSessionOptions& session_options);
 };
 
 class OpenVINOEpPlugin : public OrtEp,

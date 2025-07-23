@@ -255,3 +255,143 @@ TEST_F(OrtEpLibraryOv, PluginEp_AppendV2_mixed_factory_devices_throw_exception) 
         session_options.AppendExecutionProvider_V2(*ort_env, matching_devices, std::unordered_map<std::string, std::string>{});
         Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options); }, Ort::Exception);
 }
+
+TEST_F(OrtEpLibraryOv, ProviderOptions_EnableCausalLM) {
+  auto plugin_ep_device = GetOvCpuEpDevice();
+  ASSERT_NE(plugin_ep_device, nullptr);
+
+  // Test different boolean value formats for enable_causallm
+  std::vector<std::string> true_values = {"true", "True", "1"};
+  std::vector<std::string> false_values = {"false", "False", "0"};
+
+  for (const auto& true_val : true_values) {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+    ep_options["enable_causallm"] = true_val;
+
+    EXPECT_NO_THROW({
+      session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+      Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+    });
+  }
+
+  for (const auto& false_val : false_values) {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+    ep_options["enable_causallm"] = false_val;
+
+    EXPECT_NO_THROW({
+      session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+      Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+    });
+  }
+
+  // Test with load_config combination (for CausalLM with NPU)
+  {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+
+    ep_options["enable_causallm"] = "true";
+    ep_options["load_config"] = R"({
+    "NPU": {
+      "MAX_PROMPT_LEN": "2048",
+      "MIN_RESPONSE_LEN": "512"
+    }
+  })";
+
+    EXPECT_NO_THROW({
+      session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+      Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+    });
+  }
+}
+
+TEST_F(OrtEpLibraryOv, LoadConfig_ValidJSON) {
+  auto plugin_ep_device = GetOvCpuEpDevice();
+  ASSERT_NE(plugin_ep_device, nullptr);
+
+  // Test valid JSON with multiple devices and real OpenVINO properties
+  {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+
+    ep_options["load_config"] = R"({
+      "CPU": {
+        "INFERENCE_PRECISION_HINT": "f32",
+        "NUM_STREAMS": 2,
+        "PERFORMANCE_HINT": "LATENCY",
+        "ENABLE_CPU_PINNING": true
+      },
+      "GPU": {
+        "INFERENCE_PRECISION_HINT": "f16",
+        "CACHE_DIR": "./cache/gpu",
+        "GPU_THROUGHPUT_STREAMS": 2,
+        "PERFORMANCE_HINT": "THROUGHPUT"
+      },
+      "NPU": {
+        "INFERENCE_PRECISION_HINT": "f16",
+        "WORKLOAD_TYPE": "Efficient",
+        "NPU_TILES": "2"
+      }
+    })";
+
+    EXPECT_NO_THROW({
+      session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+      Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+    });
+  }
+}
+
+TEST_F(OrtEpLibraryOv, LoadConfig_EmptyAndInvalid) {
+  auto plugin_ep_device = GetOvCpuEpDevice();
+  ASSERT_NE(plugin_ep_device, nullptr);
+
+  // Test empty JSON object
+  {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+    ep_options["load_config"] = "{}";
+
+    EXPECT_NO_THROW({
+      session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+      Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+    });
+  }
+
+  // Test empty string
+  {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+    ep_options["load_config"] = "";
+
+    EXPECT_NO_THROW({
+      session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+      Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+    });
+  }
+
+  // Test invalid JSON (should throw exception)
+  {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+    ep_options["load_config"] = R"({"CPU":{"NUM_STREAMS":2,"INVALID"}})";  // Invalid JSON
+
+    EXPECT_THROW({
+      session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+      Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options); }, Ort::Exception);
+  }
+
+  // Test unsupported device (should print warning & throw exception)
+  {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+    ep_options["load_config"] = R"({
+      "UNSUPPORTED_DEVICE": {"SOME_PROP": "value"},
+      "CPU": {"NUM_STREAMS": 1}
+    })";
+
+    EXPECT_THROW({
+      session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{plugin_ep_device}, ep_options);
+      Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options); }, Ort::Exception);
+  }
+}

@@ -6,10 +6,15 @@
 #include <string_view>
 #include <vector>
 #include <functional>
+#include <algorithm>
+#include <cctype>
+#include <optional>
+#include <sstream>
 
 #include "ov_provider.h"
 #include "ov_compute.h"
 #include "ov_ep_context.h"
+#include "ov_plugin_utils.h"
 #include "../common/ov_supported_ops.h"
 #include "core/session/onnxruntime_session_options_config_keys.h"
 
@@ -55,7 +60,80 @@ static OrtStatus* GetSessionConfigEntryOrDefault(const OrtApi& ort_api, const Or
   return nullptr;
 }
 
-OrtStatus* OpenVINOEpPluginOptions::Init(const OrtApi& ort_api, const OrtSessionOptions& session_options) {
+OrtStatus* OpenVINOEpPluginOptions::Init(const OrtApi& ort_api, const Ort::Logger& logger, const OrtSessionOptions& session_options, const std::string& ep_name) {
+  // Parse provider-specific options
+  OVEP_RETURN_IF_ERROR(ParseProviderOptions(ort_api, logger, session_options, ep_name));
+
+  // Initialize EP context configuration
+  OVEP_RETURN_IF_ERROR(ParseEpContextOptions(ort_api, session_options));
+
+  return nullptr;
+}
+
+OrtStatus* OpenVINOEpPluginOptions::ParseProviderOptions(const OrtApi& ort_api, const Ort::Logger& logger, const OrtSessionOptions& session_options, const std::string& ep_name) {
+  std::string target_ep_name = ep_name;
+  std::transform(target_ep_name.begin(), target_ep_name.end(), target_ep_name.begin(), [](unsigned char c) { return std::tolower(c); });
+  std::string provider_prefix = "ep." + target_ep_name + ".";
+
+  // Define valid keys for the OpenVINO EP provider options
+  const auto& valid_keys = OpenVINOEpProviderOptions::GetValidProviderKeys();
+
+  // Helper to get option value from session config
+  auto get_option_value = [&](std::string_view option_name) -> std::optional<std::string> {
+    const std::string config_key = std::string(provider_prefix) + std::string(option_name);
+
+    std::string value;
+    if (GetSessionConfigEntryOrDefault(ort_api, session_options, config_key.c_str(), std::string(), value) == nullptr && !value.empty()) {
+      return value;
+    }
+
+    return std::nullopt;
+  };
+
+  // Helper to parse boolean values with case-insensitive comparison
+  auto parse_bool = [](std::string_view value) -> std::optional<bool> {
+    std::string lower_value;
+    lower_value.resize(value.size());
+    std::transform(value.begin(), value.end(), lower_value.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    if (lower_value == "true" || lower_value == "1") {
+      return true;
+    } else if (lower_value == "false" || lower_value == "0") {
+      return false;
+    }
+    return std::nullopt;
+  };
+
+  // Process each valid option if provided
+  for (const auto& key : valid_keys) {
+    auto value_opt = get_option_value(key);
+    if (!value_opt) continue;  // Option not provided
+
+    const std::string& value = *value_opt;
+
+    if (key == "enable_causallm") {
+      if (auto bool_val = parse_bool(value)) {
+        provider_options_.enable_causallm = *bool_val;
+      } else {
+        const std::string error_msg =
+            "Invalid boolean value '" + value + "' for option '" + key +
+            "'. Valid values are: 'true', 'false', '1', '0' (case insensitive)";
+        return ort_api.CreateStatus(ORT_INVALID_ARGUMENT, error_msg.c_str());
+      }
+    } else if (key == "load_config") {
+      // Parse load_config using the plugin-specific utility function
+      OVEP_RETURN_IF_ERROR(ParsePluginLoadConfigOption(ort_api, logger, value, provider_options_.load_config));
+    } else if (key == "reshape_input") {
+      // Parse reshape_input option using the plugin-specific utility function
+      OVEP_RETURN_IF_ERROR(ParsePluginReshapeInputOption(ort_api, logger, value, provider_options_.reshape_input));
+    }
+  }
+
+  return nullptr;
+}
+
+OrtStatus* OpenVINOEpPluginOptions::ParseEpContextOptions(const OrtApi& ort_api, const OrtSessionOptions& session_options) {
   OVEP_RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionEpContextEnable, false, ep_ctx_.enable_));
   OVEP_RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionEpContextEmbedMode, false, ep_ctx_.embed_));
   OVEP_RETURN_IF_ERROR(GetSessionConfigEntryOrDefault(ort_api, session_options, kOrtSessionOptionShareEpContexts, false, ep_ctx_.share_));
