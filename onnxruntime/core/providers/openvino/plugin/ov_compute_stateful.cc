@@ -57,7 +57,7 @@ OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::A
   return nullptr;
 }
 
-OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::ModelProto> model_proto) {
+OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::ModelProto> model_proto, std::vector<ModelTransformation>) {
   _ov_device = ov_device;
 
   std::string model = model_proto->SerializeAsString();
