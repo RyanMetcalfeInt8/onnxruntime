@@ -22,19 +22,18 @@ OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::A
 
   switch (ep_context_node.private_fields_.type) {
     case EpContextNode::EpContextType::Native:
-      if (ep_context_node.embed_mode == 1) {
+      if (ep_context_node.embed_mode != 0) {
         std::istringstream model_stream(std::move(ep_context_node.ep_cache_context));
         compiled_model_ = ov_core_.import_model(model_stream, ov_device, configs);
       } else {
-        // Outstanding open to MSFT: How do I get the path to the graph? Graph API doesn't have the source model path.
-        std::filesystem::path ep_cache_context = ep_context_node.ep_cache_context;
-        std::ifstream model_stream(ep_cache_context, std::ios_base::binary | std::ios_base::in);
+        const std::filesystem::path ep_ctx_path = ep_context_node.private_fields_.model_dir / ep_context_node.ep_cache_context;
+        std::ifstream model_stream(ep_ctx_path, std::ios_base::binary | std::ios_base::in);
         compiled_model_ = ov_core_.import_model(model_stream, ov_device, configs);
       }
       break;
     case EpContextNode::EpContextType::OV_IR:
       // Outstanding open to MSFT: How do I get the path to the graph? Graph API doesn't have the source model path.
-      if (ep_context_node.embed_mode == 1) {
+      if (ep_context_node.embed_mode != 0) {
         // To support this we would need to save the weights location somewhere, or have a schema for embedding the weights along with the IR.
         return Ort::Status("Epctx with OVIR must use embed_mode == 0", ORT_INVALID_ARGUMENT).release();
       } else {
