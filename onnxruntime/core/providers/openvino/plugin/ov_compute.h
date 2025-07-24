@@ -280,16 +280,16 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
 
   OrtStatus* CreateState(OrtNodeComputeContext* compute_context,
                          void** compute_state);
-  OrtStatus* Compute(void* compute_state,
-                     OrtKernelContext* kernel_context);
+  virtual OrtStatus* Compute(void* compute_state,
+                             OrtKernelContext* kernel_context);
   void ReleaseState(void* compute_state);
 
-  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node);
-  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> model_proto, std::vector<ModelTransformation> transformations = {});
+  virtual OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node);
+  virtual OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> model_proto, std::vector<ModelTransformation> transformations = {});
 
   OrtStatus* Export(EpContextNode&);
 
- private:
+ protected:
   ov::CompiledModel compiled_model_;
   ov::Core& ov_core_;
   std::unique_ptr<InferRequestPool> infer_request_pool_;
