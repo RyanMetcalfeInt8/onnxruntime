@@ -167,6 +167,7 @@ OpenVINOEpPlugin::OpenVINOEpPlugin(ApiPtrs apis, const std::string& name,
   OrtEp::GetCapability = GetCapabilityImpl;
   OrtEp::Compile = CompileImpl;
   OrtEp::ReleaseNodeComputeInfos = ReleaseNodeComputeInfosImpl;
+  OrtEp::SetDynamicOptions = SetDynamicOptionsImpl;
 }
 
 OpenVINOEpPlugin::~OpenVINOEpPlugin() = default;
