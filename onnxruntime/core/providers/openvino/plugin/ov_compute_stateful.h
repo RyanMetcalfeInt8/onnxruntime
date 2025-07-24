@@ -12,7 +12,7 @@ struct OvComputeInfoStateful : OvComputeInfo {
   OvComputeInfoStateful(ApiPtrs apis, ov::Core& ov_core);
 
   OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node) override;
-  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> model_proto) override;
+  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> model_proto, std::vector<ModelTransformation> transformations = {}) override;
 
   OrtStatus* Compute(void* compute_state,
                      OrtKernelContext* kernel_context) override;
