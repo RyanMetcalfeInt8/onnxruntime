@@ -274,8 +274,49 @@ std::vector<ModelTransformation> OpenVINOEpPlugin::BuildTransformationPipeline()
   return transformations;
 }
 
+OrtStatus* OpenVINOEpPlugin::SetDynamicOptions(const char* const* option_keys, const char* const* option_values, size_t num_options) {
+  // Process all options
+  for (size_t i = 0; i < num_options; i++) {
+    const std::string key(option_keys[i]);
+    const std::string value(option_values[i]);
+    if (key == kOrtEpDynamicOptionsWorkloadType) {
+      std::string workload_type ;
+      if (value == "Efficient") {
+        workload_type = "EFFICIENT";
+      } else if (value == "Default") {
+        workload_type = "DEFAULT";
+      } else {
+        ORT_CXX_LOGF(logger_, ORT_LOGGING_LEVEL_WARNING, "Unknown workload_type - ignoring %s / %s", key, value);
+        ORT_CXX_LOGF(logger_, ORT_LOGGING_LEVEL_WARNING, "Supported types are 'Efficient' and 'Default'");
+      }
+      if (!workload_type.empty()) {
+        for (auto& ov_compute : computes_) {
+          OVEP_RETURN_IF_ERROR(ov_compute->SetWorkloadType(workload_type));
+        }
+      }
+    } else if (key == "kvcache_rewind") {
+      int64_t index;
+      try {
+        index = std::stoll(value);
+      } catch (const std::exception& e) {
+        ORT_CXX_LOGF(logger_, ORT_LOGGING_LEVEL_WARNING,
+                     "Conversion for kvcache_rewind string value to int64_t index failed. Exception: %s", e.what());
+        return nullptr;
+      }
+      for (auto& ov_compute : computes_) {
+        OVEP_RETURN_IF_ERROR(ov_compute->KVCacheRewind(static_cast<size_t>(index)));
+      }
+    }
+  }
+
+  return nullptr;
+}
+
 OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fused_nodes,
                                      size_t count, OrtNodeComputeInfo** node_compute_infos, OrtNode** ep_context_nodes) {
+  // Clear our computes cache.
+  computes_.clear();
+
   // Process all graphs
   for (size_t i = 0; i < count; ++i) {
     const OrtGraph* graph = graphs[i];
@@ -338,7 +379,8 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
 
         OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(ep_context_node)));
         OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
-        node_compute_infos[i] = ov_compute.release();
+        computes_.push_back(ov_compute.release());
+        node_compute_infos[i] = computes_.back();
         continue;
       }
     }
@@ -348,7 +390,8 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
     OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(model_proto), BuildTransformationPipeline()));
     OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
 
-    node_compute_infos[i] = ov_compute.release();
+    computes_.push_back(ov_compute.release());
+    node_compute_infos[i] = computes_.back();
   }
 
   return nullptr;
@@ -360,4 +403,6 @@ void OpenVINOEpPlugin::ReleaseNodeComputeInfos(OrtNodeComputeInfo** node_compute
   for (size_t i = 0; i < num_node_compute_infos; i++) {
     delete static_cast<OvComputeInfo*>(node_compute_infos[i]);
   }
+
+  computes_.clear();
 }
