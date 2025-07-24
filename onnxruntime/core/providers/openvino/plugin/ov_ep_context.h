@@ -143,7 +143,6 @@ struct EpContextNode : ApiPtrs {
 
     return nullptr;
   }
-
   OrtStatus* CreateNode(const OnnxIOMapping& io_map, OrtNode*& node) {
     std::array<OrtOpAttr*, 6> attributes = {};
     DeferOrtRelease<OrtOpAttr> defer_release_attrs(attributes.data(), attributes.size(), ort_api.ReleaseOpAttr);

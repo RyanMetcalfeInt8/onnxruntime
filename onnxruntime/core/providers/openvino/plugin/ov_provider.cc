@@ -6,6 +6,7 @@
 #include <string_view>
 #include <vector>
 #include <functional>
+#include <shared_mutex>
 #include <algorithm>
 #include <cctype>
 #include <optional>
@@ -14,14 +15,18 @@
 #include "ov_provider.h"
 #include "ov_compute.h"
 #include "ov_ep_context.h"
+#include "common/weak_singleton.h"
+#include "common/ov_supported_ops.h"
 #include "ov_plugin_utils.h"
-#include "../common/ov_supported_ops.h"
 #include "core/session/onnxruntime_session_options_config_keys.h"
+#include "transformations/ov_weights_as_input.h"
 
 #define ORT_EP_UTILS_ORT_GRAPH_TO_PROTO_IMPL
 #include "core/providers/utils/ort_graph_to_proto.h"
 
 using namespace onnxruntime::openvino_ep_plugin;
+
+using shared_ctx_singleton = onnxruntime::openvino_ep::WeakSingleton<SharedContext>;
 
 template <typename T>
 static OrtStatus* GetSessionConfigEntryOrDefault(const OrtApi& ort_api, const OrtSessionOptions& session_options,
@@ -153,6 +158,7 @@ OpenVINOEpPlugin::OpenVINOEpPlugin(ApiPtrs apis, const std::string& name,
       logger_(&logger),
       ov_device_type_(ov_device_type),
       ov_core_(ov_core),
+      shared_context_(shared_ctx_singleton::Get()),
       options_(options) {
   ort_version_supported = ORT_API_VERSION;  // set to the ORT version we were compiled with.
 
@@ -233,15 +239,45 @@ OrtStatus* OpenVINOEpPlugin::GetCapability(const OrtGraph* graph, OrtEpGraphSupp
   return nullptr;
 }
 
+std::vector<ModelTransformation> OpenVINOEpPlugin::BuildTransformationPipeline() {
+  std::vector<ModelTransformation> transformations;
+
+  if (options_.ep_ctx_.share_) {
+    ov::RemoteContext remote_context;
+    try {
+      remote_context = ov_core_->get_default_context(ov_device_type_);
+    } catch (const ov::Exception&) {
+      remote_context = ov::RemoteContext();
+    }
+
+    transformations.emplace_back(
+        /* transformation function */
+        [&, remote_context = std::move(remote_context)](std::shared_ptr<ov::Model>& model) { return weights_as_inputs::InitSharedWeightsAndTransform(model, shared_context_->shared_weights, remote_context); },
+        /* optional initializer */
+        [&](ov::InferRequest& ir) {
+          std::shared_lock<std::shared_mutex> sl(shared_context_->shared_weights.mutex);
+          const auto metadata = shared_context_->shared_weights.metadata;
+          auto&& compiled_model = ir.get_compiled_model();
+          for (const auto& input : compiled_model.inputs()) {
+            using Key = SharedContext::SharedWeights::Metadata::Key;
+            const auto tensor_key = Key{*input.get_names().begin()};
+            if (metadata.contains(tensor_key)) {
+              auto& value = metadata.at(tensor_key);
+              ir.set_tensor(tensor_key.name, *value.tensor);
+            }
+          }
+        });
+  }
+
+  return transformations;
+}
+
 OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fused_nodes,
                                      size_t count, OrtNodeComputeInfo** node_compute_infos, OrtNode** ep_context_nodes) {
   // Process all graphs
   for (size_t i = 0; i < count; ++i) {
     const OrtGraph* graph = graphs[i];
     const OrtNode* fused_node = fused_nodes[i];
-    if (graph == nullptr) {
-      return ort_api.CreateStatus(ORT_INVALID_ARGUMENT, "Graph is null");
-    }
 
     size_t num_nodes = 0;
     OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNumNodes(graph, &num_nodes));
@@ -268,10 +304,10 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       node.ep_cache_context = std::string(fused_node_name) + ".blob";
 
       std::filesystem::path containing_dir{options_.ep_ctx_.path_.parent_path()};
-      if (containing_dir.empty()) {
+      if (options_.ep_ctx_.path_.empty()) {
         const ORTCHAR_T* model_path = nullptr;
         OVEP_RETURN_IF_ERROR(ort_api.Graph_GetModelPath(graph, &model_path));
-        containing_dir = model_path;
+        containing_dir = std::filesystem::path(model_path).parent_path();
       }
       node.private_fields_.model_dir = containing_dir;
 
@@ -306,7 +342,7 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
 
     std::unique_ptr<onnx::ModelProto> model_proto = std::make_unique<onnx::ModelProto>();
     OVEP_RETURN_IF_ERROR(OrtEpUtils::OrtGraphToProto(*graph, *model_proto));
-    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(model_proto)));
+    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(model_proto), BuildTransformationPipeline()));
     OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
 
     node_compute_infos[i] = ov_compute.release();

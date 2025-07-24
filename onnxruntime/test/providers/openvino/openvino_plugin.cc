@@ -395,3 +395,13 @@ TEST_F(OrtEpLibraryOv, LoadConfig_EmptyAndInvalid) {
       Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options); }, Ort::Exception);
   }
 }
+
+TEST_F(OrtEpLibraryOv, ShareContextBasic) {
+  Ort::SessionOptions session_options;
+  session_options.AddConfigEntry(kOrtSessionOptionShareEpContexts, "1");
+  session_options.AppendExecutionProvider_V2(*ort_env, std::vector<Ort::ConstEpDevice>{GetOvCpuEpDevice()}, std::unordered_map<std::string, std::string>{});
+  Ort::Session session(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+  Ort::Session session2(*ort_env, ORT_TSTR("testdata/mul_1.onnx"), session_options);
+  RunModelWithSession(session);
+  RunModelWithSession(session2);
+}

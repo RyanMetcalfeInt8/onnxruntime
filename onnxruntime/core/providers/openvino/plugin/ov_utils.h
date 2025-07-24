@@ -41,11 +41,16 @@
   OVEP_DISABLE_COPY(class_name)                \
   OVEP_DISABLE_MOVE(class_name)
 
-#define OVEP_ENFORCE(condition, ...)                         \
-  do {                                                       \
-    if (!(condition)) {                                      \
-      throw std::runtime_error(OVEP_ERROR_STR(__VA_ARGS__)); \
-    }                                                        \
+#define OVEP_THROW(...)                                    \
+  do {                                                     \
+    throw std::runtime_error(OVEP_ERROR_STR(__VA_ARGS__)); \
+  } while (0)
+
+#define OVEP_ENFORCE(condition, ...) \
+  do {                               \
+    if (!(condition)) {              \
+      OVEP_THROW(__VA_ARGS__);       \
+    }                                \
   } while (0)
 
 namespace onnxruntime {

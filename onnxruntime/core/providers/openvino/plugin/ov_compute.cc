@@ -53,12 +53,30 @@ OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& c
   return nullptr;
 }
 
-OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::ModelProto> model_proto) {
+OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::ModelProto> model_proto, std::vector<ModelTransformation> transformations) {
   std::string model = model_proto->SerializeAsString();
   model_proto.reset();
 
-  compiled_model_ = ov_core_.compile_model(std::move(model), {}, ov_device, configs);
-  infer_request_pool_ = std::make_unique<InferRequestPool>(compiled_model_, 1, [](InferRequestPool::OVInferRequestPtr&) {});
+  if (transformations.empty()) {
+    compiled_model_ = ov_core_.compile_model(std::move(model), {}, ov_device, configs);
+  } else {
+    std::shared_ptr<ov::Model> ov_model = ov_core_.read_model(model, ov::Tensor());
+    for (const auto& transform : transformations) {
+      OVEP_ENFORCE(transform.transform_func, "Transform function is null");
+      OVEP_RETURN_IF_ERROR(transform.transform_func(ov_model));
+    }
+    compiled_model_ = ov_core_.compile_model(ov_model, ov_device, configs);
+  }
+
+  auto initializers = [transformations = std::move(transformations)](InferRequestPool::OVInferRequestPtr& infer_request) {
+    for (const auto& transform : transformations) {
+      if (transform.infer_request_initializer) {
+        transform.infer_request_initializer(infer_request->ov());
+      }
+    }
+  };
+
+  infer_request_pool_ = std::make_unique<InferRequestPool>(compiled_model_, 1, std::move(initializers));
   onnx_to_ov_bindings_ = std::make_unique<OnnxToOvNetworkBindings>(compiled_model_, io_mapping, SessionContext{});
 
   return nullptr;

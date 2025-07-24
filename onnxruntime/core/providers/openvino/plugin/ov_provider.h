@@ -15,6 +15,7 @@
 #include "ov_utils.h"
 
 #include "openvino/openvino.hpp"
+#include "ov_shared_context.h"
 
 #define OVEP_PLUGIN_VERSION "0.0.0"
 
@@ -75,6 +76,19 @@ struct OpenVINOEpPluginOptions {
   OrtStatus* ParseEpContextOptions(const OrtApi& ort_api, const OrtSessionOptions& session_options);
 };
 
+struct ModelTransformation {
+  using InferRequestInitialzer = typename std::function<void(ov::InferRequest&)>;
+  using TransformFunc = typename std::function<OrtStatus*(std::shared_ptr<ov::Model>&)>;
+
+  TransformFunc transform_func;
+  InferRequestInitialzer infer_request_initializer;  // optional will be checked before use
+
+  ModelTransformation(TransformFunc func, InferRequestInitialzer initializer = nullptr)
+      : transform_func(std::move(func)), infer_request_initializer(std::move(initializer)) {}
+};
+
+struct OvComputeInfo;
+struct OnnxIOMapping;
 class OpenVINOEpPlugin : public OrtEp,
                          public ApiPtrs {
  public:
@@ -90,7 +104,9 @@ class OpenVINOEpPlugin : public OrtEp,
   OrtStatus* GetCapability(const OrtGraph* graph, OrtEpGraphSupportInfo* graph_support_info);
   OrtStatus* Compile(const OrtGraph** graphs, const OrtNode** fused_nodes, size_t count, OrtNodeComputeInfo** node_compute_infos, OrtNode** ep_context_nodes);
   void ReleaseNodeComputeInfos(OrtNodeComputeInfo** node_compute_infos, size_t num_node_compute_infos);
+  std::vector<ModelTransformation> BuildTransformationPipeline();
 
+ public:
   // Static wrapper functions for C API compatibility
   static const char* ORT_API_CALL GetNameImpl(const OrtEp* this_ptr) noexcept {
     const auto* ep = static_cast<const OpenVINOEpPlugin*>(this_ptr);
@@ -124,6 +140,7 @@ class OpenVINOEpPlugin : public OrtEp,
   Ort::Logger logger_;
   std::string ov_device_type_;  // OpenVINO device type (CPU, GPU, NPU, AUTO, etc.)
   std::shared_ptr<ov::Core> ov_core_;
+  std::shared_ptr<SharedContext> shared_context_;
   const OpenVINOEpPluginOptions options_;
 };
 

@@ -13,6 +13,7 @@
 #include <functional>
 #include <mutex>
 #include <gsl/narrow>
+#include <functional>
 
 #include "ov_provider.h"
 
@@ -284,7 +285,7 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
   void ReleaseState(void* compute_state);
 
   OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node);
-  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> ep_context_node);
+  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> model_proto, std::vector<ModelTransformation> transformations = {});
 
   OrtStatus* Export(EpContextNode&);
 
