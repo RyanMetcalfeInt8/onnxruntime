@@ -6,13 +6,13 @@
 #include "ov_compute.h"
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
   
 struct OvComputeInfoStateful : OvComputeInfo {
   OvComputeInfoStateful(ApiPtrs apis, ov::Core& ov_core);
 
-  OrtStatus* Init(const std::string& ov_device, const OnnxIOMapping&, EpContextNode ep_context_node) override;
-  OrtStatus* Init(const std::string& ov_device, const OnnxIOMapping&, std::unique_ptr<onnx::GraphProto> ep_context_node) override;
+  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node) override;
+  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> model_proto) override;
 
   OrtStatus* Compute(void* compute_state,
                      OrtKernelContext* kernel_context) override;

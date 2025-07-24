@@ -13,13 +13,12 @@
 using namespace onnxruntime::openvino_ep;
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 OvComputeInfoStateful::OvComputeInfoStateful(ApiPtrs apis, ov::Core& ov_core) : OvComputeInfo(apis, ov_core) {}
 
-OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node) {
+OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node) {
   _ov_device = ov_device;
-  ov::AnyMap configs = {}; /* no configs yet*/
 
   switch (ep_context_node.private_fields_.type) {
     case EpContextNode::EpContextType::Native:
@@ -39,7 +38,8 @@ OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const OnnxI
         // To support this we would need to save the weights location somewhere, or have a schema for embedding the weights along with the IR.
         return Ort::Status("Epctx with OVIR must use embed_mode == 0", ORT_INVALID_ARGUMENT).release();
       } else {
-        auto model = ov_core_.read_model(ep_context_node.ep_cache_context);
+        const std::filesystem::path ep_ctx_path = ep_context_node.private_fields_.model_dir / ep_context_node.ep_cache_context;
+        auto model = ov_core_.read_model(ep_ctx_path);
         compiled_model_ = stateful_compile_ir_(model, configs);
       }
       break;
@@ -58,15 +58,8 @@ OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const OnnxI
   return nullptr;
 }
 
-OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::GraphProto> graph_proto) {
+OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::ModelProto> model_proto) {
   _ov_device = ov_device;
-  ov::AnyMap configs = {}; /* no configs yet*/
-
-  auto model_proto = std::make_unique<onnx::ModelProto>();
-  model_proto->set_allocated_graph(graph_proto.release());
-  model_proto->set_ir_version(onnx::IR_VERSION);
-  model_proto->set_producer_name("onnxruntime_ov_provider_plugin");
-  model_proto->set_producer_version(OVEP_PLUGIN_VERSION);
 
   std::string model = model_proto->SerializeAsString();
   model_proto.reset();
