@@ -17,6 +17,8 @@ struct OvComputeInfoStateful : OvComputeInfo {
   OrtStatus* Compute(void* compute_state,
                      OrtKernelContext* kernel_context) override;
 
+  OrtStatus* KVCacheRewind(const size_t& index) override;
+
  private:
   ov::CompiledModel stateful_compile_ir_(std::shared_ptr<ov::Model> model, const ov::AnyMap& device_config);
   OrtStatus* pre_infer_();
