@@ -38,14 +38,27 @@ using ConfigMap = std::map<std::string, ov::AnyMap>;
 using ReshapeMap = std::map<std::string, ov::PartialShape>;
 
 struct OpenVINOEpProviderOptions {
-  ConfigMap load_config{};      // JSON config map to load custom OV parameters.
-  bool enable_causallm{false};  // Enables Causal LM Compilation for ORT GenAI OVEP Pass
-  ReshapeMap reshape_input{};   // Used for reshaping the OV graph inputs shape at runtime.
+  ConfigMap load_config_{};      // JSON config map to load custom OV parameters.
+  bool enable_causallm_{false};  // Enables Causal LM Compilation for ORT GenAI OVEP Pass
+  ReshapeMap reshape_input_{};   // Used for reshaping the OV graph inputs shape at runtime.
 
   static const std::unordered_set<std::string>& GetValidProviderKeys() {
     static const std::unordered_set<std::string> valid_keys = {
         "load_config", "enable_causallm", "reshape_input"};
     return valid_keys;
+  }
+
+  auto GetDeviceConfig(const std::string& ov_device) const {
+    std::string device_name = ov_device;
+
+    // Get meta device name, For eg AUTO when ov_device is AUTO:CPU,GPU
+    auto pos = ov_device.find_first_of(':');
+    if (pos != std::string::npos) {
+      device_name = ov_device.substr(0, pos);
+    }
+
+    auto itr = load_config_.find(device_name);
+    return itr != load_config_.end() ? itr->second : ov::AnyMap{};
   }
 };
 

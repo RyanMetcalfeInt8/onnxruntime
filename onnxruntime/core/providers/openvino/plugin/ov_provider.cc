@@ -114,7 +114,7 @@ OrtStatus* OpenVINOEpPluginOptions::ParseProviderOptions(const OrtApi& ort_api, 
 
     if (key == "enable_causallm") {
       if (auto bool_val = parse_bool(value)) {
-        provider_options_.enable_causallm = *bool_val;
+        provider_options_.enable_causallm_ = *bool_val;
       } else {
         const std::string error_msg =
             "Invalid boolean value '" + value + "' for option '" + key +
@@ -123,10 +123,10 @@ OrtStatus* OpenVINOEpPluginOptions::ParseProviderOptions(const OrtApi& ort_api, 
       }
     } else if (key == "load_config") {
       // Parse load_config using the plugin-specific utility function
-      OVEP_RETURN_IF_ERROR(ParsePluginLoadConfigOption(ort_api, logger, value, provider_options_.load_config));
+      OVEP_RETURN_IF_ERROR(ParsePluginLoadConfigOption(ort_api, logger, value, provider_options_.load_config_));
     } else if (key == "reshape_input") {
       // Parse reshape_input option using the plugin-specific utility function
-      OVEP_RETURN_IF_ERROR(ParsePluginReshapeInputOption(ort_api, logger, value, provider_options_.reshape_input));
+      OVEP_RETURN_IF_ERROR(ParsePluginReshapeInputOption(ort_api, logger, value, provider_options_.reshape_input_));
     }
   }
 
@@ -297,7 +297,7 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
         OVEP_RETURN_IF_ERROR(ort_api.Graph_GetModelPath(graph, &model_path));
         OVEP_RETURN_IF_ERROR(ep_context_node.Init(node, model_path));
 
-        OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(ep_context_node)));
+        OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(ep_context_node)));
         OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
         node_compute_infos[i] = ov_compute.release();
         continue;
@@ -306,7 +306,7 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
 
     std::unique_ptr<onnx::ModelProto> model_proto = std::make_unique<onnx::ModelProto>();
     OVEP_RETURN_IF_ERROR(OrtEpUtils::OrtGraphToProto(*graph, *model_proto));
-    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, io_mapping, std::move(model_proto)));
+    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(model_proto)));
     OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
 
     node_compute_infos[i] = ov_compute.release();

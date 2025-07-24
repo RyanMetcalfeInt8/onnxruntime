@@ -22,9 +22,7 @@ OvComputeInfo::OvComputeInfo(ApiPtrs apis, ov::Core& ov_core) : ApiPtrs(apis), o
   OrtNodeComputeInfo::ReleaseState = ReleaseStateImpl;
 }
 
-OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node) {
-  ov::AnyMap configs = {}; /* no configs yet*/
-
+OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node) {
   switch (ep_context_node.private_fields_.type) {
     case EpContextNode::EpContextType::Native:
       if (ep_context_node.embed_mode != 0) {
@@ -55,9 +53,7 @@ OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const OnnxIOMapping
   return nullptr;
 }
 
-OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::ModelProto> model_proto) {
-  ov::AnyMap configs = {}; /* no configs yet*/
-
+OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, std::unique_ptr<onnx::ModelProto> model_proto) {
   std::string model = model_proto->SerializeAsString();
   model_proto.reset();
 
