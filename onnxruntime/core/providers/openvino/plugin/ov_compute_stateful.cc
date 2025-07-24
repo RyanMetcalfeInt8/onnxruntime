@@ -257,5 +257,50 @@ OrtStatus* OvComputeInfoStateful::Compute(void* /*compute_state*/,
   return nullptr;
 }
 
+OrtStatus* OvComputeInfoStateful::KVCacheRewind(const size_t& index) {
+  auto& infer_request = _infer_request->ov();
+  if (prefill_use_full_chat_history_) {
+    // Clear the internal KVCache state. For NPU device, this operation is a no-op.
+    infer_request.reset_state();
+
+    // Resize the cached "input_ids" and "position_ids" to the specified index.
+    if (cached_input_ids_.size() > index) {
+      cached_input_ids_.resize(index);
+    }
+
+    if (cached_position_ids_.size() > index) {
+      cached_position_ids_.resize(index);
+    }
+  } else {
+    // Retrieve KVCache states and trim them to the specified index.
+    // The following logic is adapted from:
+    // https://github.com/openvinotoolkit/openvino.genai/blob/releases/2025/1/src/cpp/src/utils.cpp#L329
+    auto states = infer_request.query_state();
+    for (auto& state : states) {
+      ov::Tensor old_tensor = state.get_state();
+      // Tensor shape: [batch_size, num_kv_heads, seq_len, head_size]
+      auto shape = old_tensor.get_shape();
+
+      if (shape[2] > index) {
+        // Update the sequence length dimension to the specified index.
+        shape[2] = index;
+
+        ov::Coordinate new_shape_begin{0, 0, 0, 0};
+        ov::Coordinate new_shape_end{shape};
+
+        // Create a trimmed tensor with the updated shape.
+        auto trimmed_tensor = ov::Tensor(old_tensor, new_shape_begin, new_shape_end);
+
+        // Copy the trimmed tensor into a new tensor and update the state.
+        ov::Tensor new_tensor(old_tensor.get_element_type(), shape);
+        trimmed_tensor.copy_to(new_tensor);
+
+        state.set_state(new_tensor);
+      }
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace openvino_ep
 }  // namespace onnxruntime
