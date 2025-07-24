@@ -35,7 +35,7 @@ struct DeferOrtRelease {
 };
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 struct EpContextNode : ApiPtrs {
   size_t num_nodes{0};
@@ -128,7 +128,7 @@ struct EpContextNode : ApiPtrs {
     private_fields_.model_dir = model_path.parent_path();
 
     if (embed_mode == 1) {
-      if (utils::IsXmlHeader(ep_cache_context)) {
+      if (openvino_ep::utils::IsXmlHeader(ep_cache_context)) {
         private_fields_.type = EpContextType::OV_IR;
       }
     } else {
@@ -136,7 +136,7 @@ struct EpContextNode : ApiPtrs {
       std::ifstream ep_ctx_file(ep_ctx_path, std::ios::binary);
       OVEP_RETURN_IF(ep_ctx_file.fail(), ort_api, std::format("Could not open EP context file {}", ep_ctx_path.string()).c_str());
 
-      if (utils::IsModelStreamXML(ep_ctx_file)) {
+      if (openvino_ep::utils::IsModelStreamXML(ep_ctx_file)) {
         private_fields_.type = EpContextType::OV_IR;
       }
     }
@@ -182,5 +182,5 @@ struct EpContextNode : ApiPtrs {
   }
 };
 
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime

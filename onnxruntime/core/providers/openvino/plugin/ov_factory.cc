@@ -15,7 +15,7 @@
 #include "openvino/openvino.hpp"
 #include "../common/weak_singleton.h"
 
-using namespace onnxruntime::openvino_ep;
+using namespace onnxruntime::openvino_ep_plugin;
 using ov_core_singleton = onnxruntime::openvino_ep::WeakSingleton<ov::Core>;
 
 static void InitCxxApi(const OrtApiBase& ort_api_base) {

@@ -8,7 +8,7 @@
 #include "openvino/core/version.hpp"
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 OpenVINOVersion OpenVINOVersion::GetBuiltVersion() {
   return OpenVINOVersion(OPENVINO_VERSION_MAJOR, OPENVINO_VERSION_MINOR);
@@ -251,10 +251,10 @@ static const std::vector<SupportedOp> kAllSupportedOps = {
     {OpenVINOVersion(0, 0), "EPContext", kMicrosoftDomain},
 
     // Following work but ONNX frontend does not claim support
-    {OpenVINOVersion(2024, 4), "DequantizeLinear", kMicrosoftDomain },
+    {OpenVINOVersion(2024, 4), "DequantizeLinear", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "QuantizeLinear", kMicrosoftDomain},
     {OpenVINOVersion(2024, 4), "Gelu", kMicrosoftDomain},
-};  // namespace openvino_ep
+};
 
 SupportedOps::SupportedOps(const OpenVINOVersion& ov_version)
     : version_(ov_version) {
@@ -266,5 +266,5 @@ SupportedOps::SupportedOps(const OpenVINOVersion& ov_version)
   }
 }
 
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime

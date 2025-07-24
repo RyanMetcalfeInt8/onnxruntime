@@ -10,10 +10,10 @@
 #include "ov_compute.h"
 #include "ov_ep_context.h"
 
-using namespace onnxruntime::openvino_ep;
+using namespace onnxruntime::openvino_ep_plugin;
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 OvComputeInfo::OvComputeInfo(ApiPtrs apis, ov::Core& ov_core) : ApiPtrs(apis), ov_core_(ov_core) {
   ort_version_supported = ORT_API_VERSION;
@@ -162,5 +162,5 @@ void OvComputeInfo::ReleaseState(void* compute_state) {
   (void)compute_state;
 }
 
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime

@@ -12,7 +12,7 @@
 #include "openvino/openvino.hpp"
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
  public:
@@ -150,5 +150,5 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
   }
 };
 
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime

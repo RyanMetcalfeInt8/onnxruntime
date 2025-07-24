@@ -12,7 +12,7 @@
 #include "onnxruntime_cxx_api.h"
 #undef ORT_API_MANUAL_INIT
 
-#define OVEP_ERROR_STR(...) onnxruntime::openvino_ep::BuildErrorMessage(__FILE__, __LINE__, __VA_ARGS__)
+#define OVEP_ERROR_STR(...) onnxruntime::openvino_ep_plugin::BuildErrorMessage(__FILE__, __LINE__, __VA_ARGS__)
 
 #define OVEP_RETURN_IF_ERROR(fn) \
   do {                           \
@@ -41,15 +41,15 @@
   OVEP_DISABLE_COPY(class_name)                \
   OVEP_DISABLE_MOVE(class_name)
 
-#define OVEP_ENFORCE(condition, ...)                                                                          \
-  do {                                                                                                        \
-    if (!(condition)) {                                                                                       \
-      throw std::runtime_error(OVEP_ERROR_STR(__VA_ARGS__));                                                  \
-    }                                                                                                         \
+#define OVEP_ENFORCE(condition, ...)                         \
+  do {                                                       \
+    if (!(condition)) {                                      \
+      throw std::runtime_error(OVEP_ERROR_STR(__VA_ARGS__)); \
+    }                                                        \
   } while (0)
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 constexpr const char* kOvepLogTag = "[OpenVINO-EP] ";
 
@@ -90,5 +90,5 @@ static auto ApiEntry(Func&& func, std::optional<std::reference_wrapper<Ort::Logg
   }
 }
 
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime

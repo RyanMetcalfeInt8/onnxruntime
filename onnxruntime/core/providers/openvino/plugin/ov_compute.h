@@ -20,7 +20,7 @@
 #include "core/providers/utils/ort_graph_to_proto.h"
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 using string_index_map_t = std::unordered_map<std::string, uint32_t>;
 
@@ -314,5 +314,5 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
     compute_info->ReleaseState(compute_state);
   }
 };
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime
