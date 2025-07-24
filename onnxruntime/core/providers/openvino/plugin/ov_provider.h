@@ -19,7 +19,7 @@
 #define OVEP_PLUGIN_VERSION "0.0.0"
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 struct ApiPtrs {
   const OrtApi& ort_api;
@@ -127,5 +127,5 @@ class OpenVINOEpPlugin : public OrtEp,
   const OpenVINOEpPluginOptions options_;
 };
 
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime

@@ -78,8 +78,8 @@ class OVExeNetwork {
 
  public:
   explicit OVExeNetwork(ov::CompiledModel compiled_model, std::string device, bool stateful_causallm = false)
-      : compiled_model_obj(compiled_model), target_device(device), is_stateful_causallm(stateful_causallm) {}
-  OVExeNetwork() : compiled_model_obj(ov::CompiledModel()) {}
+      : compiled_model_obj(std::move(compiled_model)), target_device(std::move(device)), is_stateful_causallm(stateful_causallm) {}
+  OVExeNetwork() : compiled_model_obj(ov::CompiledModel()), is_stateful_causallm(false) {}
   ov::CompiledModel& Get() { return compiled_model_obj; }
   std::shared_ptr<OVInferRequest> CreateInferRequest();
 };
@@ -132,7 +132,7 @@ class OVInferRequest {
   ov::InferRequest& GetNewObj() {
     return ovInfReq;
   }
-  virtual void RewindKVCache(size_t index) {}
+  virtual void RewindKVCache([[maybe_unused]] size_t index) {}
 };
 
 class StatefulOVInferRequest : public OVInferRequest {

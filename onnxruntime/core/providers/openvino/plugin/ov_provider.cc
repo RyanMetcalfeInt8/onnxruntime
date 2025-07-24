@@ -21,7 +21,7 @@
 #define ORT_EP_UTILS_ORT_GRAPH_TO_PROTO_IMPL
 #include "core/providers/utils/ort_graph_to_proto.h"
 
-using namespace onnxruntime::openvino_ep;
+using namespace onnxruntime::openvino_ep_plugin;
 
 template <typename T>
 static OrtStatus* GetSessionConfigEntryOrDefault(const OrtApi& ort_api, const OrtSessionOptions& session_options,

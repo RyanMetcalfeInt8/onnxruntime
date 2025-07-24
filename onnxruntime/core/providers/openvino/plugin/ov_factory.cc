@@ -15,7 +15,7 @@
 #include "openvino/openvino.hpp"
 #include "../common/weak_singleton.h"
 
-using namespace onnxruntime::openvino_ep;
+using namespace onnxruntime::openvino_ep_plugin;
 using ov_core_singleton = onnxruntime::openvino_ep::WeakSingleton<ov::Core>;
 
 static void InitCxxApi(const OrtApiBase& ort_api_base) {
@@ -126,6 +126,10 @@ OrtStatus* OpenVINOEpPluginFactory::GetSupportedDevices(const OrtHardwareDevice*
     OrtKeyValuePairs* ep_options = nullptr;
     ort_api.CreateKeyValuePairs(&ep_metadata);
     ort_api.AddKeyValuePair(ep_metadata, ov_device_key_, matched_device->c_str());
+
+    if (IsMetaDeviceFactory()) {
+      ort_api.AddKeyValuePair(ep_metadata, ov_meta_device_key_, device_type_.c_str());
+    }
 
     // Create EP device
     auto* status = ort_api.GetEpApi()->CreateEpDevice(this, &device, ep_metadata, ep_options,

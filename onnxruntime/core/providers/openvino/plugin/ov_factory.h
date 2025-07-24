@@ -12,7 +12,7 @@
 #include "openvino/openvino.hpp"
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
  public:
@@ -73,6 +73,7 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
   static constexpr uint32_t vendor_id_{0x8086};  // Intel's PCI vendor ID
   static constexpr const char* ov_device_key_ = "ov_device";
   static constexpr const char* provider_name_ = "OpenVINOExecutionProvider";
+  static constexpr const char* ov_meta_device_key_ = "ov_meta_device";
 
  private:
   std::string ep_name_;
@@ -149,5 +150,5 @@ class OpenVINOEpPluginFactory : public OrtEpFactory, public ApiPtrs {
   }
 };
 
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime

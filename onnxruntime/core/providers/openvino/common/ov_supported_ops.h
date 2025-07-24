@@ -8,7 +8,7 @@
 #include <variant>
 
 namespace onnxruntime {
-namespace openvino_ep {
+namespace openvino_ep_plugin {
 
 struct OpenVINOVersion {
   OpenVINOVersion() = default;
@@ -57,5 +57,5 @@ struct SupportedOps {
   std::set<std::pair<std::string_view, std::string_view>> ops_;
 };
 
-}  // namespace openvino_ep
+}  // namespace openvino_ep_plugin
 }  // namespace onnxruntime
