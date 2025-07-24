@@ -105,6 +105,9 @@ class OpenVINOEpPlugin : public OrtEp,
   OrtStatus* Compile(const OrtGraph** graphs, const OrtNode** fused_nodes, size_t count, OrtNodeComputeInfo** node_compute_infos, OrtNode** ep_context_nodes);
   void ReleaseNodeComputeInfos(OrtNodeComputeInfo** node_compute_infos, size_t num_node_compute_infos);
   std::vector<ModelTransformation> BuildTransformationPipeline();
+  OrtStatus* SetDynamicOptions(const char* const* /*option_keys*/, const char* const* /*option_values*/, size_t /*num_options*/) {
+    return nullptr;
+  }
 
  public:
   // Static wrapper functions for C API compatibility
@@ -133,6 +136,13 @@ class OpenVINOEpPlugin : public OrtEp,
     auto* ep = static_cast<OpenVINOEpPlugin*>(this_ptr);
     ApiEntry([&]() { ep->ReleaseNodeComputeInfos(node_compute_infos, num_node_compute_infos); }, ep->logger_);
   }
+
+  static OrtStatus* ORT_API_CALL SetDynamicOptionsImpl(OrtEp* this_ptr, const char* const* option_keys,
+                                                       const char* const* option_values, size_t num_options) noexcept {
+    auto* ep = static_cast<OpenVINOEpPlugin*>(this_ptr);
+    return ApiEntry([&]() { return ep->SetDynamicOptions(option_keys, option_values, num_options); }, ep->logger_);
+  }
+
 
  private:
   std::string name_;
