@@ -49,10 +49,9 @@ OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::A
   _infer_request = std::make_unique<WrappedInferRequest>(std::move(compiled_model_.create_infer_request()));
   onnx_to_ov_bindings_ = std::make_unique<OnnxToOvNetworkBindings>(compiled_model_, io_mapping, SessionContext{true});
 
-  bool gpu_or_npu = ((_ov_device.find("NPU") != std::string::npos) || (_ov_device.find("GPU") != std::string::npos));
-  if (gpu_or_npu) {
-    prefill_use_full_chat_history_ = true;
-  }
+  // For NPU & GPU, use full chat history for each pre-fill.
+  // For GPU, we do this right now as rewinding kvcache takes a really long time -- which we need to address.
+  prefill_use_full_chat_history_ = ((_ov_device.find("NPU") != std::string::npos) || (_ov_device.find("GPU") != std::string::npos));
 
   return nullptr;
 }
@@ -69,10 +68,9 @@ OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::A
   _infer_request = std::make_unique<WrappedInferRequest>(std::move(compiled_model_.create_infer_request()));
   onnx_to_ov_bindings_ = std::make_unique<OnnxToOvNetworkBindings>(compiled_model_, io_mapping, SessionContext{true});
 
-  bool gpu_or_npu = ((_ov_device.find("NPU") != std::string::npos) || (_ov_device.find("GPU") != std::string::npos));
-  if (gpu_or_npu) {
-    prefill_use_full_chat_history_ = true;
-  }
+  // For NPU & GPU, use full chat history for each pre-fill.
+  // For GPU, we do this right now as rewinding kvcache takes a really long time -- which we need to address.
+  prefill_use_full_chat_history_ = ((_ov_device.find("NPU") != std::string::npos) || (_ov_device.find("GPU") != std::string::npos));
 
   return nullptr;
 }
@@ -98,12 +96,8 @@ ov::CompiledModel OvComputeInfoStateful::stateful_compile_ir_(std::shared_ptr<ov
   auto kv_pos = GetKVAxesPos(model);
   if (_ov_device.find("NPU") != std::string::npos) {
     KVDesc kv_desc;
-    auto parse_genai_config = [&](const std::string& key, unsigned int default_value) {
-      return (config.count(key) && !config.at(key).empty() && config.at(key).as<std::string>() != "0") ? config.at(key).as<unsigned int>() : default_value;
-    };
-
-    kv_desc.max_prompt_len = parse_genai_config("MAX_PROMPT_LEN", CausalLMConfig().max_prompt_len);
-    kv_desc.min_response_len = parse_genai_config("MIN_RESPONSE_LEN", CausalLMConfig().min_response_len);
+    kv_desc.max_prompt_len = PopIntAndCast(config, "MAX_PROMPT_LEN").value_or(1024u);
+    kv_desc.min_response_len = PopIntAndCast(config, "MIN_RESPONSE_LEN").value_or(128u);
 
     // For compilation, MAX_PROMPT_LEN & MIN_RESPONSE_LEN should not be 0
     if (kv_desc.max_prompt_len == 0 || kv_desc.min_response_len == 0) {
@@ -118,7 +112,7 @@ ov::CompiledModel OvComputeInfoStateful::stateful_compile_ir_(std::shared_ptr<ov
     UpdateNPUConfig(config, kv_pos, kv_desc);
   } else {
     // This patches the OV IR model so that it only produces the logits required for sampling.
-    // It's not needed for NPU, as it is already internally applied inside NPU compilation.
+    // It's not needed for NPU, as it is already internally applied inside NPUW compilation.
     ApplySliceBeforeMatmulTransformation(model);
   }
 
