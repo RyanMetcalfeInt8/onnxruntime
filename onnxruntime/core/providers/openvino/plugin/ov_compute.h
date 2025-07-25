@@ -276,7 +276,7 @@ struct OnnxToOvNetworkBindings {
 
 struct EpContextNode;
 struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
-  OvComputeInfo(ApiPtrs apis, ov::Core& ov_core);
+  OvComputeInfo(ApiPtrs apis, ov::Core& ov_core, const Ort::Logger& logger);
 
   OrtStatus* CreateState(OrtNodeComputeContext* compute_context,
                          void** compute_state);
@@ -296,6 +296,7 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
  protected:
   ov::CompiledModel compiled_model_;
   ov::Core& ov_core_;
+  Ort::Logger logger_;
   std::unique_ptr<InferRequestPool> infer_request_pool_;
   std::unique_ptr<OnnxToOvNetworkBindings> onnx_to_ov_bindings_;
 

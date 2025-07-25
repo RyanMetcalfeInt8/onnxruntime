@@ -15,7 +15,7 @@ using namespace onnxruntime::openvino_ep_plugin;
 namespace onnxruntime {
 namespace openvino_ep_plugin {
 
-OvComputeInfo::OvComputeInfo(ApiPtrs apis, ov::Core& ov_core) : ApiPtrs(apis), ov_core_(ov_core) {
+OvComputeInfo::OvComputeInfo(ApiPtrs apis, ov::Core& ov_core, const Ort::Logger& logger) : ApiPtrs(apis), ov_core_(ov_core), logger_(logger) {
   ort_version_supported = ORT_API_VERSION;
   OrtNodeComputeInfo::CreateState = CreateStateImpl;
   OrtNodeComputeInfo::Compute = ComputeImpl;

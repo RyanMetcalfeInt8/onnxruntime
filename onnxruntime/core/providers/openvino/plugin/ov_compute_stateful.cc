@@ -12,10 +12,12 @@
 
 using namespace onnxruntime::openvino_ep;
 
+#define STATEFUL_LOG_LEVEL ORT_LOGGING_LEVEL_INFO
+
 namespace onnxruntime {
 namespace openvino_ep_plugin {
 
-OvComputeInfoStateful::OvComputeInfoStateful(ApiPtrs apis, ov::Core& ov_core) : OvComputeInfo(apis, ov_core) {}
+OvComputeInfoStateful::OvComputeInfoStateful(ApiPtrs apis, ov::Core& ov_core, const Ort::Logger& logger) : OvComputeInfo(apis, ov_core, logger) {}
 
 OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node) {
   _ov_device = ov_device;
@@ -75,22 +77,45 @@ OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::A
   return nullptr;
 }
 
+static void LogBasicModelInfo(const std::shared_ptr<const ov::Model>& model, const Ort::Logger& logger) {
+  if (STATEFUL_LOG_LEVEL < logger.GetLoggingSeverityLevel()) {
+    return;
+  }
+  ORT_CXX_LOGF(logger, STATEFUL_LOG_LEVEL, "Model Name: %s", model->get_friendly_name().c_str());
+  // Log detailed information about model inputs and outputs
+  auto inputs = model->inputs();
+  auto outputs = model->outputs();
+  ORT_CXX_LOGF(logger, STATEFUL_LOG_LEVEL, "\tInputs: ");
+  for (const ov::Output<const ov::Node>& input : inputs) {
+    const std::string name = input.get_any_name();
+    const ov::element::Type type = input.get_element_type();
+    const ov::PartialShape shape = input.get_partial_shape();
+    const ov::Layout layout = ov::layout::get_layout(input);
+    ORT_CXX_LOGF(logger, STATEFUL_LOG_LEVEL, "\t\t%s, %s, %s, %s", name.c_str(), type.to_string().c_str(), shape.to_string().c_str(), layout.to_string().c_str());
+  }
+  ORT_CXX_LOGF(logger, STATEFUL_LOG_LEVEL, "\tOutputs: ");
+  for (const ov::Output<const ov::Node>& output : outputs) {
+    const std::string name = output.get_any_name();
+    const ov::element::Type type = output.get_element_type();
+    const ov::PartialShape shape = output.get_partial_shape();
+    const ov::Layout layout = ov::layout::get_layout(output);
+    ORT_CXX_LOGF(logger, STATEFUL_LOG_LEVEL, "\t\t%s, %s, %s, %s", name.c_str(), type.to_string().c_str(), shape.to_string().c_str(), layout.to_string().c_str());
+  }
+}
+
 ov::CompiledModel OvComputeInfoStateful::stateful_compile_ir_(std::shared_ptr<ov::Model> model, const ov::AnyMap& device_config) {
-  ov::CompiledModel compiled_model;
   ov::AnyMap config = device_config;
 
-  std::cout << "Model input to stateful_compile_ir_:" << std::endl;
-  LogBasicModelInfo(model);
+  ORT_CXX_LOGF(logger_, STATEFUL_LOG_LEVEL, "Model input to Stateful Compile:");
+  LogBasicModelInfo(model, logger_);
 
-  bool model_status = IsStateful(model);
-  std::cout << "Model IsStateful() Status:\t" << (model_status ? "True" : "False") << std::endl;
+  bool is_stateful = IsStateful(model);
+  ORT_CXX_LOGF(logger_, STATEFUL_LOG_LEVEL, "Model IsStateful(): %s", is_stateful ? "True" : "False");
 
-  if (!model_status) {
-    std::cout << "Converting from Stateless OV Model to Stateful OV Model" << std::endl;
+  if (!is_stateful) {
     PatchStatefulDecoder(model);
-
-    std::cout << "Model after stateful transformation:" << std::endl;
-    LogBasicModelInfo(model);
+    ORT_CXX_LOGF(logger_, STATEFUL_LOG_LEVEL, "Model after stateful transformation:");
+    LogBasicModelInfo(model, logger_);
   }
 
   auto kv_pos = GetKVAxesPos(model);
@@ -104,11 +129,10 @@ ov::CompiledModel OvComputeInfoStateful::stateful_compile_ir_(std::shared_ptr<ov
       throw std::runtime_error("MAX_PROMPT_LEN or MIN_RESPONSE_LEN cannot be 0");
     }
 
-    std::cout << "kv_pos.batch = " << kv_pos.batch << std::endl;
-    std::cout << "kv_pos.seq_len = " << kv_pos.seq_len << std::endl;
-    std::cout << "kv_desc.max_prompt_len:\t" << kv_desc.max_prompt_len << std::endl;
-    std::cout << "kv_desc.min_response_len:\t" << kv_desc.min_response_len << std::endl;
-
+    ORT_CXX_LOGF(logger_, STATEFUL_LOG_LEVEL, "kv_pos.batch = %zu", kv_pos.batch);
+    ORT_CXX_LOGF(logger_, STATEFUL_LOG_LEVEL, "kv_pos.seq_len = %zu", kv_pos.seq_len);
+    ORT_CXX_LOGF(logger_, STATEFUL_LOG_LEVEL, "kv_pos.max_prompt_len = %u", kv_desc.max_prompt_len);
+    ORT_CXX_LOGF(logger_, STATEFUL_LOG_LEVEL, "kv_pos.min_response_len = %u", kv_desc.min_response_len);
     UpdateNPUConfig(config, kv_pos, kv_desc);
   } else {
     // This patches the OV IR model so that it only produces the logits required for sampling.
@@ -116,7 +140,7 @@ ov::CompiledModel OvComputeInfoStateful::stateful_compile_ir_(std::shared_ptr<ov
     ApplySliceBeforeMatmulTransformation(model);
   }
 
-  compiled_model = ov_core_.compile_model(model, _ov_device, config);
+  auto compiled_model = ov_core_.compile_model(model, _ov_device, config);
 
   return compiled_model;
 }

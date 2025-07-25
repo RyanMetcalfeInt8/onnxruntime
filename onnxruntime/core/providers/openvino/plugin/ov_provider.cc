@@ -328,8 +328,8 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
     std::vector<const OrtNode*> nodes(num_nodes);
     OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNodes(graph, nodes.data(), nodes.size()));
 
-    auto ov_compute = options_.provider_options_.enable_causallm_ ? std::make_unique<OvComputeInfoStateful>(*this, *ov_core_) :
-                                                                    std::make_unique<OvComputeInfo>(*this, *ov_core_);
+    auto ov_compute = options_.provider_options_.enable_causallm_ ? std::make_unique<OvComputeInfoStateful>(*this, *ov_core_, logger_) :
+                                                                    std::make_unique<OvComputeInfo>(*this, *ov_core_, logger_);
 
     OnnxIOMapping io_mapping;
     OVEP_RETURN_IF_ERROR(io_mapping.Init(ort_api, *graph));
