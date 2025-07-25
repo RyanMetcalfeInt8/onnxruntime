@@ -8,7 +8,7 @@
 
 #include "ov_compute_stateful.h"
 #include "ov_ep_context.h"
-#include "../ov_stateful_patch_utils.h"
+#include "common/ov_stateful_patch_utils.h"
 
 using namespace onnxruntime::openvino_ep;
 

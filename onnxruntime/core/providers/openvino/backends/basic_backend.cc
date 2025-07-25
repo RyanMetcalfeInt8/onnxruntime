@@ -16,7 +16,7 @@
 #include "core/providers/openvino/backends/basic_backend.h"
 #include "core/providers/openvino/onnx_ctx_model_helper.h"
 #include "core/providers/openvino/backend_manager.h"
-#include "core/providers/openvino/ov_stateful_patch_utils.h"
+#include "core/providers/openvino/common/ov_stateful_patch_utils.h"
 
 namespace onnxruntime {
 
