@@ -323,8 +323,11 @@ std::optional<uint32_t> PopIntAndCast(ov::AnyMap& config, const std::string& key
       value = any.as<int64_t>();
     } else if (any.is<int>()) {
       value = any.as<int>();
+    }
+    else if (any.is<std::string>()) {
+      value = std::stoll(any.as<std::string>());
     } else {
-      OPENVINO_THROW("Failed to extract " + key + ". Type mismatch: expected types: int or int64_t");
+      OPENVINO_THROW("Failed to extract " + key + ". Type mismatch: expected types: int, int64_t, or string");
     }
     if (value < 0) {
       OPENVINO_THROW(key + " cannot be negative!");
