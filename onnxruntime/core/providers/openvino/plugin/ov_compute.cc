@@ -163,6 +163,20 @@ OrtStatus* OvComputeInfo::Compute(void* /*compute_state*/,
   return nullptr;
 }
 
+OrtStatus* OvComputeInfo::SetWorkloadType(const std::string& workload_type) {
+  if (compiled_model_) {
+    try {
+      compiled_model_.set_property(ov::workload_type(workload_type));
+    } catch (const std::exception& e) {
+      return ort_api.CreateStatus(ORT_RUNTIME_EXCEPTION,
+                                  std::format("set_property(ov::workload_type(%s)) failed. Details: %s", workload_type, e.what()).c_str());
+    }
+  } else {
+    return ort_api.CreateStatus(ORT_RUNTIME_EXCEPTION, "No compiled model to set workload_type on");
+  }
+  return nullptr;
+}
+
 OrtStatus* OvComputeInfo::CreateState(OrtNodeComputeContext* compute_context,
                                       void** compute_state) {
   // Dummy implementation: set compute_state to nullptr
