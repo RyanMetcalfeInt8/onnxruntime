@@ -187,12 +187,6 @@ TEST_F(OrtEpLibraryOv, PluginEp_AppendV2_cpu_epctx_plugin_roundtrip_variants) {
   ASSERT_NE(plugin_ep_device, nullptr);
 
   for (const auto& test_case : ep_context_cases) {
-    if (test_case.embed_mode) {
-      // TODO(ericcraw) Re-enable.
-      // Skip the embed mode until upstream fix.
-      continue;
-    }
-
     GenerateEpContextOnPluginPath(test_case.ctx_filename, test_case.embed_mode);
 
     Ort::SessionOptions session_options;
@@ -208,12 +202,6 @@ TEST_F(OrtEpLibraryOv, PluginEp_AppendV2_cpu_epctx_plugin_roundtrip_variants_abs
   ASSERT_NE(plugin_ep_device, nullptr);
 
   for (const auto& test_case : ep_context_cases) {
-    if (test_case.embed_mode) {
-      // TODO(ericcraw) Re-enable.
-      // Skip the embed mode until upstream fix.
-      continue;
-    }
-
     auto absolute_path = std::filesystem::absolute(test_case.ctx_filename).native();
     GenerateEpContextOnPluginPath(absolute_path.c_str(), test_case.embed_mode);
 
