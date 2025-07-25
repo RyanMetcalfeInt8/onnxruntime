@@ -290,7 +290,7 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
   OrtStatus* Export(EpContextNode&);
 
   // SetDynamicOptions routines
-  OrtStatus* SetWorkloadType(const std::string &workload_type) { return nullptr; };
+  OrtStatus* SetWorkloadType(const std::string &workload_type);
   virtual OrtStatus* KVCacheRewind(const size_t& index) { return nullptr; };
 
  protected:
