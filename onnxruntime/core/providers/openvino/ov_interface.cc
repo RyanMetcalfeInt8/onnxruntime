@@ -10,7 +10,7 @@
 #include "core/providers/shared_library/provider_api.h"
 #include "core/providers/openvino/backend_utils.h"
 #include "core/providers/openvino/backends/basic_backend.h"
-#include "core/providers/openvino/ov_stateful_patch_utils.h"
+#include "core/providers/openvino/common/ov_stateful_patch_utils.h"
 
 namespace onnxruntime {
 namespace openvino_ep {

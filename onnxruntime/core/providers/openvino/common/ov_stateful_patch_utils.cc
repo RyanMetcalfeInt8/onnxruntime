@@ -1,7 +1,7 @@
 // Copyright (C) Intel Corporation
 // Licensed under the MIT License
 
-#include "core/providers/openvino/ov_stateful_patch_utils.h"
+#include "ov_stateful_patch_utils.h"
 
 namespace onnxruntime {
 namespace openvino_ep {
