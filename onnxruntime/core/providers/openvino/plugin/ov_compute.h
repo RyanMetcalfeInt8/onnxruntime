@@ -13,7 +13,6 @@
 #include <functional>
 #include <mutex>
 #include <gsl/narrow>
-#include <functional>
 
 #include "ov_provider.h"
 
@@ -276,7 +275,7 @@ struct OnnxToOvNetworkBindings {
 
 struct EpContextNode;
 struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
-  OvComputeInfo(ApiPtrs apis, ov::Core& ov_core);
+  OvComputeInfo(ApiPtrs apis, ov::Core& ov_core, Ort::Logger logger);
 
   OrtStatus* CreateState(OrtNodeComputeContext* compute_context,
                          void** compute_state);
@@ -284,16 +283,19 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
                      OrtKernelContext* kernel_context);
   void ReleaseState(void* compute_state);
 
-  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node);
+  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node, std::vector<ModelTransformation> transformations = {});
   OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> model_proto, std::vector<ModelTransformation> transformations = {});
 
   OrtStatus* Export(EpContextNode&);
 
  private:
+  void InitCommon(const OnnxIOMapping&, std::vector<ModelTransformation> transformations);
+
   ov::CompiledModel compiled_model_;
   ov::Core& ov_core_;
   std::unique_ptr<InferRequestPool> infer_request_pool_;
   std::unique_ptr<OnnxToOvNetworkBindings> onnx_to_ov_bindings_;
+  Ort::Logger logger_;
 
  public:
   // Static wrapper functions for C API compatibility

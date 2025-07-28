@@ -10,12 +10,13 @@
 namespace onnxruntime {
 namespace openvino_ep_plugin {
 
-std::shared_ptr<ov::Model> convertConstantsToInputs(std::shared_ptr<ov::Model> model, SharedContext::SharedWeights& shared_weights, const ov::RemoteContext& remote_context) {
+std::shared_ptr<ov::Model> ConvertConstantsToInputs(std::shared_ptr<ov::Model> model, SharedContext::SharedWeights& shared_weights) {
   // Collect all constants in the model
   std::vector<std::shared_ptr<ov::op::v0::Constant>> constants_to_convert;
 
   for (auto&& node : model->get_ordered_ops()) {
-    if (auto constant = std::dynamic_pointer_cast<ov::op::v0::Constant>(node)) {
+    auto constant = std::dynamic_pointer_cast<ov::op::v0::Constant>(node);
+    if (constant && shared_weights.IsSharedWeight(constant->get_friendly_name())) {
       constants_to_convert.push_back(constant);
     }
   }
@@ -37,8 +38,6 @@ std::shared_ptr<ov::Model> convertConstantsToInputs(std::shared_ptr<ov::Model> m
     constant->output(0).replace(parameter->output(0));
 
     new_parameters.push_back(parameter);
-
-    shared_weights.AddWeight(param_name, remote_context, constant->get_tensor_view());
   }
 
   // Get existing parameters and add new ones
@@ -54,9 +53,9 @@ std::shared_ptr<ov::Model> convertConstantsToInputs(std::shared_ptr<ov::Model> m
   return new_model;
 }
 
-OrtStatus* weights_as_inputs::InitSharedWeightsAndTransform(std::shared_ptr<ov::Model>& model, SharedContext::SharedWeights& shared_weights, const ov::RemoteContext& remote_context) {
+OrtStatus* weights_as_inputs::TransformSharedWeightsToInpus(std::shared_ptr<ov::Model>& model, SharedContext::SharedWeights& shared_weights) {
   try {
-    model = convertConstantsToInputs(model, shared_weights, remote_context);
+    model = ConvertConstantsToInputs(model, shared_weights);
     return nullptr;  // Success
   } catch (const std::exception& e) {
     return Ort::Status(OVEP_ERROR_STR("Failed to transform model weights: ", e.what()).c_str(),

@@ -104,7 +104,7 @@ class OpenVINOEpPlugin : public OrtEp,
   OrtStatus* GetCapability(const OrtGraph* graph, OrtEpGraphSupportInfo* graph_support_info);
   OrtStatus* Compile(const OrtGraph** graphs, const OrtNode** fused_nodes, size_t count, OrtNodeComputeInfo** node_compute_infos, OrtNode** ep_context_nodes);
   void ReleaseNodeComputeInfos(OrtNodeComputeInfo** node_compute_infos, size_t num_node_compute_infos);
-  std::vector<ModelTransformation> BuildTransformationPipeline();
+  std::vector<ModelTransformation> BuildTransformationPipeline(std::filesystem::path model_dir);
 
  public:
   // Static wrapper functions for C API compatibility
@@ -136,7 +136,6 @@ class OpenVINOEpPlugin : public OrtEp,
 
  private:
   std::string name_;
-  std::vector<const OrtHardwareDevice*> hardware_devices_;
   Ort::Logger logger_;
   std::string ov_device_type_;  // OpenVINO device type (CPU, GPU, NPU, AUTO, etc.)
   std::shared_ptr<ov::Core> ov_core_;

@@ -19,6 +19,7 @@
 #include "common/ov_supported_ops.h"
 #include "ov_plugin_utils.h"
 #include "core/session/onnxruntime_session_options_config_keys.h"
+#include "core/common/common.h"
 #include "transformations/ov_weights_as_input.h"
 
 #define ORT_EP_UTILS_ORT_GRAPH_TO_PROTO_IMPL
@@ -239,7 +240,42 @@ OrtStatus* OpenVINOEpPlugin::GetCapability(const OrtGraph* graph, OrtEpGraphSupp
   return nullptr;
 }
 
-std::vector<ModelTransformation> OpenVINOEpPlugin::BuildTransformationPipeline() {
+static OrtStatus* AddSharableWeights(const OrtGraph& graph_ref, SharedContext& shared_context) {
+  const OrtApi& ort_api = Ort::GetApi();
+  size_t num_initializers = 0;
+  const OrtGraph* graph = &graph_ref;
+  OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNumInitializers(graph, &num_initializers));
+
+  std::vector<const OrtValueInfo*> initializers(num_initializers);
+  OVEP_RETURN_IF_ERROR(ort_api.Graph_GetInitializers(graph, initializers.data(), initializers.size()));
+
+  for (const auto& initializer : initializers) {
+    const char* initializer_name = nullptr;
+    OVEP_RETURN_IF_ERROR(ort_api.GetValueInfoName(initializer, &initializer_name));
+
+    // Get external initializer information if available
+    OrtExternalInitializerInfo* ext_info = nullptr;
+    DeferOrtRelease<OrtExternalInitializerInfo> release_ext(&ext_info, ort_api.ReleaseExternalInitializerInfo);
+    OVEP_RETURN_IF_ERROR(ort_api.ValueInfo_GetExternalInitializerInfo(initializer, &ext_info));
+
+    if (ext_info != nullptr) {
+      // Extract external weight parameters
+      const ORTCHAR_T* file_path = ort_api.ExternalInitializerInfo_GetFilePath(ext_info);
+      int64_t offset = ort_api.ExternalInitializerInfo_GetFileOffset(ext_info);
+      size_t size = ort_api.ExternalInitializerInfo_GetByteSize(ext_info);
+
+      shared_context.shared_weights.AddExternalWeight(
+          std::string(initializer_name),
+          static_cast<size_t>(offset),
+          size,
+          file_path);
+    }
+  }
+
+  return nullptr;
+}
+
+std::vector<ModelTransformation> OpenVINOEpPlugin::BuildTransformationPipeline(std::filesystem::path model_dir) {
   std::vector<ModelTransformation> transformations;
 
   if (options_.ep_ctx_.share_) {
@@ -252,20 +288,10 @@ std::vector<ModelTransformation> OpenVINOEpPlugin::BuildTransformationPipeline()
 
     transformations.emplace_back(
         /* transformation function */
-        [&, remote_context = std::move(remote_context)](std::shared_ptr<ov::Model>& model) { return weights_as_inputs::InitSharedWeightsAndTransform(model, shared_context_->shared_weights, remote_context); },
+        [&, remote_context = std::move(remote_context)](std::shared_ptr<ov::Model>& model) { return weights_as_inputs::TransformSharedWeightsToInpus(model, shared_context_->shared_weights); },
         /* optional initializer */
-        [&](ov::InferRequest& ir) {
-          std::shared_lock<std::shared_mutex> sl(shared_context_->shared_weights.mutex);
-          const auto metadata = shared_context_->shared_weights.metadata;
-          auto&& compiled_model = ir.get_compiled_model();
-          for (const auto& input : compiled_model.inputs()) {
-            using Key = SharedContext::SharedWeights::Metadata::Key;
-            const auto tensor_key = Key{*input.get_names().begin()};
-            if (metadata.contains(tensor_key)) {
-              auto& value = metadata.at(tensor_key);
-              ir.set_tensor(tensor_key.name, *value.tensor);
-            }
-          }
+        [&, remote_context, model_dir](ov::InferRequest& ir) {
+          shared_context_->shared_weights.SetSharedWeightsOnInferRequest(ir, remote_context, model_dir);
         });
   }
 
@@ -285,10 +311,24 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
     std::vector<const OrtNode*> nodes(num_nodes);
     OVEP_RETURN_IF_ERROR(ort_api.Graph_GetNodes(graph, nodes.data(), nodes.size()));
 
-    auto ov_compute = std::make_unique<OvComputeInfo>(*this, *ov_core_);
+    auto ov_compute = std::make_unique<OvComputeInfo>(*this, *ov_core_, logger_);
 
     OnnxIOMapping io_mapping;
     OVEP_RETURN_IF_ERROR(io_mapping.Init(ort_api, *graph));
+
+    std::filesystem::path model_path;
+    const ORTCHAR_T* char_model_path = nullptr;
+    OVEP_RETURN_IF_ERROR(ort_api.Graph_GetModelPath(graph, &char_model_path));
+    model_path = std::filesystem::path(char_model_path);
+    std::filesystem::path model_dir = model_path.parent_path();
+
+    // Output path is the EP context path if specified -- otherwise the same as model path.
+    std::filesystem::path output_directory{options_.ep_ctx_.path_.parent_path()};
+    std::filesystem::path output_model_path{options_.ep_ctx_.path_};
+    if (options_.ep_ctx_.path_.empty()) {
+      output_directory = model_dir;
+      output_model_path = model_path;
+    }
 
     auto try_export_ep_context = [&](OvComputeInfo& ov_compute, OnnxIOMapping io_mapping) -> OrtStatus* {
       if (!options_.ep_ctx_.enable_) {
@@ -303,21 +343,20 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       node.partition_name = fused_node_name;
       node.ep_cache_context = std::string(fused_node_name) + ".blob";
 
-      std::filesystem::path containing_dir{options_.ep_ctx_.path_.parent_path()};
-      if (options_.ep_ctx_.path_.empty()) {
-        const ORTCHAR_T* model_path = nullptr;
-        OVEP_RETURN_IF_ERROR(ort_api.Graph_GetModelPath(graph, &model_path));
-        containing_dir = std::filesystem::path(model_path).parent_path();
-      }
-      node.private_fields_.model_dir = containing_dir;
-
+      node.private_fields_.model_dir = output_directory;
       node.private_fields_.node_name = fused_node_name;
+
       node.main_context = 1;  // We always return a single fused node.
       // TODO(ericcraw) Figure out what to put here.
       // node.ep_sdk_version =
+      node.onnx_model_filename = output_model_path.filename().string();
 
       OVEP_RETURN_IF_ERROR(ov_compute.Export(node));
       OVEP_RETURN_IF_ERROR(node.CreateNode(io_mapping, ep_context_nodes[i]));
+      if (options_.ep_ctx_.share_) {
+        OVEP_RETURN_IF_ERROR(shared_context_->shared_weights.SaveMetaData(node.private_fields_.model_dir, node.onnx_model_filename));
+      }
+
       return nullptr;
     };
 
@@ -328,21 +367,26 @@ OrtStatus* OpenVINOEpPlugin::Compile(const OrtGraph** graphs, const OrtNode** fu
       OVEP_RETURN_IF_ERROR(node_info.Init(ort_api, node));
       if (node_info.is_ep_context) {
         EpContextNode ep_context_node(*this);
-
-        const ORTCHAR_T* model_path = nullptr;
-        OVEP_RETURN_IF_ERROR(ort_api.Graph_GetModelPath(graph, &model_path));
         OVEP_RETURN_IF_ERROR(ep_context_node.Init(node, model_path));
 
-        OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(ep_context_node)));
+        if (options_.ep_ctx_.share_) {
+          OVEP_RETURN_IF_ERROR(shared_context_->shared_weights.LoadMetaData(ep_context_node.private_fields_.model_dir, ep_context_node.onnx_model_filename));
+        }
+
+        OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(ep_context_node), BuildTransformationPipeline(model_dir)));
         OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
         node_compute_infos[i] = ov_compute.release();
         continue;
       }
     }
 
+    if (options_.ep_ctx_.share_) {
+      AddSharableWeights(*graph, *shared_context_);
+    }
+
     std::unique_ptr<onnx::ModelProto> model_proto = std::make_unique<onnx::ModelProto>();
     OVEP_RETURN_IF_ERROR(OrtEpUtils::OrtGraphToProto(*graph, *model_proto));
-    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(model_proto), BuildTransformationPipeline()));
+    OVEP_RETURN_IF_ERROR(ov_compute->Init(ov_device_type_, options_.provider_options_.GetDeviceConfig(ov_device_type_), io_mapping, std::move(model_proto), BuildTransformationPipeline(model_dir)));
     OVEP_RETURN_IF_ERROR(try_export_ep_context(*ov_compute, std::move(io_mapping)));
 
     node_compute_infos[i] = ov_compute.release();

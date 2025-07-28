@@ -15,16 +15,20 @@ using namespace onnxruntime::openvino_ep_plugin;
 namespace onnxruntime {
 namespace openvino_ep_plugin {
 
-OvComputeInfo::OvComputeInfo(ApiPtrs apis, ov::Core& ov_core) : ApiPtrs(apis), ov_core_(ov_core) {
+OvComputeInfo::OvComputeInfo(ApiPtrs apis, ov::Core& ov_core, Ort::Logger logger) : ApiPtrs(apis), ov_core_(ov_core), logger_(logger) {
   ort_version_supported = ORT_API_VERSION;
   OrtNodeComputeInfo::CreateState = CreateStateImpl;
   OrtNodeComputeInfo::Compute = ComputeImpl;
   OrtNodeComputeInfo::ReleaseState = ReleaseStateImpl;
 }
 
-OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node) {
+OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node, std::vector<ModelTransformation> transformations) {
   switch (ep_context_node.private_fields_.type) {
     case EpContextNode::EpContextType::Native:
+      if (!transformations.empty()) {
+        ORT_CXX_LOG(logger_, ORT_LOGGING_LEVEL_INFO, "Model is native ep ctx. Model transformation functions will be skipped.");
+      }
+
       if (ep_context_node.embed_mode != 0) {
         std::istringstream model_stream(std::move(ep_context_node.ep_cache_context));
         compiled_model_ = ov_core_.import_model(model_stream, ov_device, configs);
@@ -34,22 +38,32 @@ OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& c
         compiled_model_ = ov_core_.import_model(model_stream, ov_device, configs);
       }
       break;
+
     case EpContextNode::EpContextType::OV_IR:
       if (ep_context_node.embed_mode != 0) {
         // To support this we would need to save the weights location somewhere, or have a schema for embedding the weights along with the IR.
         return Ort::Status("Epctx with OVIR must use embed_mode == 0", ORT_INVALID_ARGUMENT).release();
       } else {
         const std::filesystem::path ep_ctx_path = ep_context_node.private_fields_.model_dir / ep_context_node.ep_cache_context;
-        compiled_model_ = ov_core_.compile_model(ep_ctx_path, ov_device, configs);
+        if (transformations.empty()) {
+          compiled_model_ = ov_core_.compile_model(ep_ctx_path, ov_device, configs);
+        } else {
+          const std::filesystem::path bin_path = ep_ctx_path.parent_path() / (ep_ctx_path.stem().string() + ".bin");
+          std::shared_ptr<ov::Model> ov_model = ov_core_.read_model(ep_ctx_path, bin_path);
+          for (const auto& transform : transformations) {
+            OVEP_ENFORCE(transform.transform_func, "Transform function is null");
+            OVEP_RETURN_IF_ERROR(transform.transform_func(ov_model));
+          }
+          compiled_model_ = ov_core_.compile_model(ov_model, ov_device, configs);
+        }
       }
       break;
+
     default:
       return Ort::Status("Unsupported EpContextType", ORT_INVALID_ARGUMENT).release();
   }
 
-  infer_request_pool_ = std::make_unique<InferRequestPool>(compiled_model_, 1, [](InferRequestPool::OVInferRequestPtr&) {});
-  onnx_to_ov_bindings_ = std::make_unique<OnnxToOvNetworkBindings>(compiled_model_, io_mapping, SessionContext{});
-
+  InitCommon(io_mapping, std::move(transformations));
   return nullptr;
 }
 
@@ -68,6 +82,11 @@ OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& c
     compiled_model_ = ov_core_.compile_model(ov_model, ov_device, configs);
   }
 
+  InitCommon(io_mapping, std::move(transformations));
+  return nullptr;
+}
+
+void OvComputeInfo::InitCommon(const OnnxIOMapping& io_mapping, std::vector<ModelTransformation> transformations) {
   auto initializers = [transformations = std::move(transformations)](InferRequestPool::OVInferRequestPtr& infer_request) {
     for (const auto& transform : transformations) {
       if (transform.infer_request_initializer) {
@@ -78,8 +97,6 @@ OrtStatus* OvComputeInfo::Init(const std::string& ov_device, const ov::AnyMap& c
 
   infer_request_pool_ = std::make_unique<InferRequestPool>(compiled_model_, 1, std::move(initializers));
   onnx_to_ov_bindings_ = std::make_unique<OnnxToOvNetworkBindings>(compiled_model_, io_mapping, SessionContext{});
-
-  return nullptr;
 }
 
 OrtStatus* OvComputeInfo::Export(EpContextNode& epctx_node) {
