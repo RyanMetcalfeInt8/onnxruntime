@@ -19,7 +19,7 @@ namespace openvino_ep_plugin {
 
 OvComputeInfoStateful::OvComputeInfoStateful(ApiPtrs apis, ov::Core& ov_core, const Ort::Logger& logger) : OvComputeInfo(apis, ov_core, logger) {}
 
-OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node) {
+OrtStatus* OvComputeInfoStateful::Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping& io_mapping, EpContextNode ep_context_node, std::vector<ModelTransformation>) {
   _ov_device = ov_device;
 
   switch (ep_context_node.private_fields_.type) {

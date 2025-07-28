@@ -11,7 +11,7 @@ namespace openvino_ep_plugin {
 struct OvComputeInfoStateful : OvComputeInfo {
   OvComputeInfoStateful(ApiPtrs apis, ov::Core& ov_core, const Ort::Logger& logger);
 
-  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node) override;
+  OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, EpContextNode ep_context_node, std::vector<ModelTransformation> transformations = {}) override;
   OrtStatus* Init(const std::string& ov_device, const ov::AnyMap& configs, const OnnxIOMapping&, std::unique_ptr<onnx::ModelProto> model_proto, std::vector<ModelTransformation> transformations = {}) override;
 
   OrtStatus* Compute(void* compute_state,
