@@ -32,11 +32,12 @@ class SharedContext {
         }
       };
       struct Value {
-        std::string location;
-        size_t data_offset;
-        size_t size;
-        ov::Shape dimensions;
-        ov::element::Type element_type;
+        struct {
+          std::filesystem::path location{"not_set"};
+          size_t data_offset{0};
+          size_t size{0};
+        } serialized;
+
         std::shared_ptr<ov::Tensor> tensor;
       };
       using Map = std::unordered_map<Key, Value, Hash>;
@@ -48,21 +49,35 @@ class SharedContext {
       OVEP_DISABLE_COPY_AND_MOVE(WeightsFile);
       WeightsFile() = delete;
       explicit WeightsFile(std::filesystem::path filename);
-
-      void load_weights(size_t file_offset, void* data, size_t size);
+      void LoadWeights(size_t file_offset, void* data, size_t size);
 
      private:
       std::ifstream file_;
       size_t weights_size_;
     };
 
-    std::shared_mutex mutex;
-    std::filesystem::path external_weight_filename;
-    std::unique_ptr<WeightsFile> mapped_weights;
+    mutable std::shared_mutex mutex;
+    std::unordered_map<std::filesystem::path, std::unique_ptr<WeightsFile>> weight_files;
     Metadata::Map metadata;
-    std::filesystem::path metadata_filepath;
 
-    void AddWeight(const std::string&, const ov::RemoteContext&, const ov::Tensor&);
+    OrtStatus* LoadMetaData(std::filesystem::path model_dir, const std::string &model_name);
+    OrtStatus* SaveMetaData(std::filesystem::path model_dir, const std::string& model_name);
+    static std::filesystem::path GetMetaDataFilePath(const std::filesystem::path& model_dir, const std::string& model_name) {
+      return model_dir / (model_name + "_metadata.bin");
+    }
+    bool IsSharedWeight(const std::string& name) const {
+      std::shared_lock lock(mutex);
+      return metadata.contains(Metadata::Key{.name = name});
+    }
+    void AddExternalWeight(const std::string& name, size_t offset, size_t size, std::filesystem::path location) {
+      Metadata::Value value;
+      value.serialized.data_offset = offset;
+      value.serialized.size = size;
+      value.serialized.location = std::move(location);
+      std::unique_lock lock(mutex);
+      metadata[Metadata::Key{.name = name}] = std::move(value);
+    }
+    void SetSharedWeightsOnInferRequest(ov::InferRequest& ir, const ov::RemoteContext& remote_context, std::filesystem::path model_dir);
   } shared_weights;
 };
 

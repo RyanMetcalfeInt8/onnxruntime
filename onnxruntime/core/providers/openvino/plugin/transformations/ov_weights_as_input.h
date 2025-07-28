@@ -9,7 +9,7 @@ namespace onnxruntime {
 namespace openvino_ep_plugin {
 
 namespace weights_as_inputs {
-OrtStatus* InitSharedWeightsAndTransform(std::shared_ptr<ov::Model>& model, SharedContext::SharedWeights& shared_weights, const ov::RemoteContext& remote_context);
+OrtStatus* TransformSharedWeightsToInpus(std::shared_ptr<ov::Model>& model, SharedContext::SharedWeights& shared_weights);
 }
 
 }  // namespace openvino_ep_plugin
