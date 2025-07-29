@@ -277,6 +277,8 @@ struct EpContextNode;
 struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
   OvComputeInfo(ApiPtrs apis, ov::Core& ov_core, Ort::Logger logger);
 
+  virtual ~OvComputeInfo() {};
+
   OrtStatus* CreateState(OrtNodeComputeContext* compute_context,
                          void** compute_state);
   virtual OrtStatus* Compute(void* compute_state,
@@ -290,7 +292,7 @@ struct OvComputeInfo : OrtNodeComputeInfo, ApiPtrs {
 
   // SetDynamicOptions routines
   OrtStatus* SetWorkloadType(const std::string& workload_type);
-  virtual OrtStatus* KVCacheRewind(const size_t& index) { return nullptr; };
+  virtual OrtStatus* KVCacheRewind(const size_t& /*index*/) { return nullptr; };
 
  protected:
   void InitCommon(const OnnxIOMapping&, std::vector<ModelTransformation> transformations);
